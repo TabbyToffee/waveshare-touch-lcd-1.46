@@ -1,0 +1,1 @@
+I have an esp32s3 board with a display which I want to talk to over SPI, however if I create a new display struct, nothing is printed to the console and I get a broken pipe error. How should I debug it?
