@@ -1,29 +1,26 @@
 #![no_std]
 #![no_main]
+#![allow(dead_code)]
 
-use esp_hal::gpio::rtc_io::LowPowerOutputOpenDrain;
-use esp_hal::gpio::{DriveMode, Flex, InputConfig, Level, Output, OutputConfig, Pull, RtcPin};
-use esp_hal::peripherals::Peripherals;
-use esp_hal::Blocking;
+use esp_hal::delay::Delay;
 use watch_playground::exio::{PinDirection, PinState};
-use watch_playground::{display, exio};
+use watch_playground::{display, exio, touch};
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use embedded_hal;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::{clock::CpuClock, gpio::Input};
+use esp_hal::{clock::CpuClock};
+use qmi8658::Qmi8658;
 // use fugit;
 
-use embedded_graphics::{
-    pixelcolor::Rgb888,
-    prelude::*,
-    primitives::{Circle, PrimitiveStyle},
-};
+// use embedded_graphics::{
+//     pixelcolor::Rgb888,
+//     prelude::*,
+//     primitives::{Circle, PrimitiveStyle},
+// };
 
 use esp_hal::{
-    gpio::{GpioPin, Io},
     i2c::master::{Config, I2c},
     ledc::{
         channel, channel::ChannelIFace, timer, timer::TimerIFace, LSGlobalClkSource, Ledc, LowSpeed,
@@ -93,28 +90,46 @@ async fn main(spawner: Spawner) {
     .with_sda(i2c_sda_pin)
     .with_scl(i2c_scl_pin);
     
-    exio::write_register(&mut i2c, 1, 55);
-    let reg_value = exio::read_register(&mut i2c, 1);
-    println!("55? : {}", reg_value);
+    let result = i2c.write(0x6B, &[0]);
+    dbg!(result);
+    let mut buffer: [u8; 10] = [0; 10];
+    dbg!(i2c.read(0x6B, &mut buffer));
+    dbg!(buffer);
     
-    exio::set_pin(&mut i2c, 4, PinState::High);
-    let pin_state = exio::read_pin(&mut i2c, 4);
-    println!("High? : {:?}", pin_state);
+    let mut gyroscope = Qmi8658::new(&mut i2c, Delay::new());
     
-    exio::set_pin_direction(&mut i2c, 4, PinDirection::Output);
-    let pin_direction = exio::read_pin_direction(&mut i2c, 4);
-    println!("Output?: {:?}", pin_direction);
+    match gyroscope.get_device_id() {
+        Ok(rev) => {
+            println!("QMI8658 Device ID: {:?}", rev);
+        }
+        Err(err) => {
+            println!("QMI8658 not found {err:?}");
+        }
+    };
     
-    exio::set_pin_direction(&mut i2c, 4, PinDirection::Input);
-    let pin_direction = exio::read_pin_direction(&mut i2c, 4);
-    println!("Input?: {:?}", pin_direction);
+    // exio::write_register(&mut i2c, 1, 55);
+    // let reg_value = exio::read_register(&mut i2c, 1);
+    // println!("55? : {}", reg_value);
     
-    exio::set_pin(&mut i2c, 2, PinState::High);
-    Timer::after(Duration::from_millis(100)).await;
-    exio::set_pin(&mut i2c, 2, PinState::Low);
-    Timer::after(Duration::from_millis(100)).await;
+    // exio::set_pin(&mut i2c, 4, PinState::High);
+    // let pin_state = exio::read_pin(&mut i2c, 4);
+    // println!("High? : {:?}", pin_state);
+    
+    // exio::set_pin_direction(&mut i2c, 4, PinDirection::Output);
+    // let pin_direction = exio::read_pin_direction(&mut i2c, 4);
+    // println!("Output?: {:?}", pin_direction);
+    
+    // exio::set_pin_direction(&mut i2c, 4, PinDirection::Input);
+    // let pin_direction = exio::read_pin_direction(&mut i2c, 4);
+    // println!("Input?: {:?}", pin_direction);
+    // 
+    display::reset(&mut i2c).await;
+    
+    println!("Reset touch");
+    touch::reset(&mut i2c).await;
+    // touch::read_fw_version(&mut i2c).await;
 
-    let mut rtc = PCF8563::new(i2c);
+    let mut rtc = PCF8563::new(&mut i2c);
     rtc.rtc_init().unwrap();
 
     let mut ledc: Ledc = Ledc::new(ledc_pin);
@@ -139,7 +154,7 @@ async fn main(spawner: Spawner) {
 
     let frequency = Rate::from_mhz(ESP_PANEL_LCD_SPI_CLK_MHZ);
 
-    let mut spi: Spi<Async> = Spi::new(
+    let mut spi = Spi::new(
         peripherals.SPI2,
         spi::master::Config::default()
             .with_mode(spi::Mode::_0)
@@ -151,11 +166,15 @@ async fn main(spawner: Spawner) {
     .with_sio0(sio0)
     .with_sio1(sio1)
     .with_sio2(sio2)
-    .with_sio3(sio3)
-    .into_async();
-
-    let mut data = [0x01, 0x02, 0x03, 0x04, 35, 36, 37, 38];
-    spi.transfer(&mut data).unwrap();
+    .with_sio3(sio3);
+    // .into_async();
+    
+    display::init(&mut spi);
+    display::test(&mut spi);
+    // display::init(&mut spi);
+    
+    // let mut data = [0x01, 0x02, 0x03, 0x04, 35, 36, 37, 38];
+    // spi.transfer(&mut data).unwrap();
     // return
     // println!("data: {:x?}", data);
 
@@ -171,9 +190,10 @@ async fn main(spawner: Spawner) {
         // xfsdffdv.draw();
     }
 
-    loop {
-        Timer::after(Duration::from_secs(1)).await;
-    }
+    return;
+    // loop {
+    //     Timer::after(Duration::from_secs(1)).await;
+    // }
 
     // display::Spd2010::new(spi);
 

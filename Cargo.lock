@@ -37,6 +37,12 @@ checksum = "2d7e60934ceec538daadb9d8432424ed043a904d8e0243f3c6446bce549a46ac"
 
 [[package]]
 name = "bitfield"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c821a6e124197eb56d907ccc2188eab1038fb919c914f47976e64dd8dbc855d1"
+
+[[package]]
+name = "bitfield"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c7e6caee68becd795bfd65f1a026e4d00d8f0c2bc9be5eb568e1015f9ce3c34"
@@ -203,15 +209,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.101",
-]
-
-[[package]]
-name = "deranged"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c9e6a11ca8224451684bc0d7d5a7adbf8f2fd6887261a1cfc3c0432f9d4068e"
-dependencies = [
- "powerfmt",
 ]
 
 [[package]]
@@ -993,12 +990,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 
 [[package]]
-name = "num-conv"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
-
-[[package]]
 name = "num-derive"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1038,16 +1029,6 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
-
-[[package]]
-name = "pcf85063a"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deeaedc27ac830842ffbf60fccdba5c9e09e01e7eb0036336c86068cc75ae8ba"
-dependencies = [
- "embedded-hal-async",
- "time",
-]
 
 [[package]]
 name = "pcf8563"
@@ -1094,12 +1075,6 @@ dependencies = [
  "quote",
  "syn 2.0.101",
 ]
-
-[[package]]
-name = "powerfmt"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "proc-macro-crate"
@@ -1163,6 +1138,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "qmi8658"
+version = "0.1.0"
+source = "git+https://github.com/IniterWorker/qmi8658?tab=readme-ov-file#a5d47c98bc84213baba3edea1199814e2c1cbec6"
+dependencies = [
+ "bitfield 0.15.0",
+ "embedded-hal 1.0.0",
+ "libm",
 ]
 
 [[package]]
@@ -1384,24 +1369,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "time"
-version = "0.3.41"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a7619e19bc266e0f9c5e6686659d394bc57973859340060a69221e57dbc0c40"
-dependencies = [
- "deranged",
- "num-conv",
- "powerfmt",
- "time-core",
-]
-
-[[package]]
-name = "time-core"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9e9a38711f559d9e3ce1cdb06dd7c5b8ea546bc90052da6d06bb76da74bb07c"
-
-[[package]]
 name = "toml"
 version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1570,8 +1537,8 @@ dependencies = [
  "esp-wifi",
  "fugit",
  "heapless",
- "pcf85063a",
  "pcf8563",
+ "qmi8658",
  "smoltcp",
  "static_cell",
 ]

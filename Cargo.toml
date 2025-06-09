@@ -55,8 +55,9 @@ esp-println = { version = "0.13.1", features = ["esp32s3"] }
 embedded-graphics = "0.8.1"
 fugit = "0.3.7"
 embedded-hal = "1.0.0"
-pcf85063a = "0.1.1"
+# pcf85063a = "0.1.1"
 pcf8563 = { path = "../pcf8563-rs"}
+qmi8658 = { git = "https://github.com/IniterWorker/qmi8658?tab=readme-ov-file" }
 
 [profile.dev]
 # Rust debug is too slow.

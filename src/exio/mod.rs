@@ -43,7 +43,7 @@ fn write_register_bit(i2c: &mut I2c<Blocking>, register: u8, bit: u8, value: boo
     // Have to read register to only change 1 pin and keep others intact
     let mut reg_value = read_register(i2c, register);
 
-    println!("Current config register value = {reg_value}");
+    println!("Current register value = {reg_value:0b}");
 
     // default pin direction is input (bit value = 1)
     // set bit to zero for output
@@ -56,13 +56,13 @@ fn write_register_bit(i2c: &mut I2c<Blocking>, register: u8, bit: u8, value: boo
         }
     }
 
-    println!("Set config register value = {reg_value}");
+    println!("Set register value = {reg_value:0b}");
 
     write_register(i2c, register, reg_value);
 
-    let new_config = read_register(i2c, register);
+    let new_value = read_register(i2c, register);
 
-    println!("New config register value = {new_config}");
+    println!("New register value = {new_value:0b}");
 }
 
 fn read_register_bit(i2c: &mut I2c<Blocking>, register: u8, bit: u8) -> bool {
