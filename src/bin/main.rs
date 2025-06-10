@@ -2,7 +2,6 @@
 #![no_main]
 #![allow(dead_code)]
 
-use esp_hal::delay::Delay;
 use watch_playground::exio::{PinDirection, PinState};
 use watch_playground::{display, exio, touch};
 
@@ -11,7 +10,6 @@ use embassy_time::{Duration, Timer};
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::timg::TimerGroup;
 use esp_hal::{clock::CpuClock};
-use qmi8658::Qmi8658;
 // use fugit;
 
 // use embedded_graphics::{
@@ -89,40 +87,7 @@ async fn main(spawner: Spawner) {
     .unwrap()
     .with_sda(i2c_sda_pin)
     .with_scl(i2c_scl_pin);
-    
-    let result = i2c.write(0x6B, &[0]);
-    dbg!(result);
-    let mut buffer: [u8; 10] = [0; 10];
-    dbg!(i2c.read(0x6B, &mut buffer));
-    dbg!(buffer);
-    
-    let mut gyroscope = Qmi8658::new(&mut i2c, Delay::new());
-    
-    match gyroscope.get_device_id() {
-        Ok(rev) => {
-            println!("QMI8658 Device ID: {:?}", rev);
-        }
-        Err(err) => {
-            println!("QMI8658 not found {err:?}");
-        }
-    };
-    
-    // exio::write_register(&mut i2c, 1, 55);
-    // let reg_value = exio::read_register(&mut i2c, 1);
-    // println!("55? : {}", reg_value);
-    
-    // exio::set_pin(&mut i2c, 4, PinState::High);
-    // let pin_state = exio::read_pin(&mut i2c, 4);
-    // println!("High? : {:?}", pin_state);
-    
-    // exio::set_pin_direction(&mut i2c, 4, PinDirection::Output);
-    // let pin_direction = exio::read_pin_direction(&mut i2c, 4);
-    // println!("Output?: {:?}", pin_direction);
-    
-    // exio::set_pin_direction(&mut i2c, 4, PinDirection::Input);
-    // let pin_direction = exio::read_pin_direction(&mut i2c, 4);
-    // println!("Input?: {:?}", pin_direction);
-    // 
+
     display::reset(&mut i2c).await;
     
     println!("Reset touch");
@@ -135,15 +100,6 @@ async fn main(spawner: Spawner) {
     let mut ledc: Ledc = Ledc::new(ledc_pin);
 
     display::backlight_init(&mut ledc, backlight_pwm_pin);
-
-    // Reset EXIO
-    // i2c.write(TCA9554_CONFIG_REG, &[0x00]);
-
-    // Reset LCD
-    // set_pin(&mut i2c, 0x02, false);
-    // Timer::after(Duration::from_millis(100)).await;
-    // set_pin(&mut i2c, 0x02, true);
-    // Timer::after(Duration::from_millis(100)).await;
 
     let sck = peripherals.GPIO40;
     let cs = peripherals.GPIO21;
@@ -167,77 +123,4 @@ async fn main(spawner: Spawner) {
     .with_sio1(sio1)
     .with_sio2(sio2)
     .with_sio3(sio3);
-    // .into_async();
-    
-    display::init(&mut spi);
-    display::test(&mut spi);
-    // display::init(&mut spi);
-    
-    // let mut data = [0x01, 0x02, 0x03, 0x04, 35, 36, 37, 38];
-    // spi.transfer(&mut data).unwrap();
-    // return
-    // println!("data: {:x?}", data);
-
-    // spi.transfer(&[32]);
-    // spi.write_bytes(&[32]);
-
-    println!("Before");
-
-    {
-        // display::Spd2010::new(spi).await;
-        // let mut xfsdffdv = display::Spd2010::new(spi).await;
-        // xfsdffdv.init();
-        // xfsdffdv.draw();
-    }
-
-    return;
-    // loop {
-    //     Timer::after(Duration::from_secs(1)).await;
-    // }
-
-    // display::Spd2010::new(spi);
-
-    // let x = display::Spd2010 {
-
-    // }
-
-    // display.set_pixel(10, 20, 0xf00);
-
-    // Draw a circle with top-left at `(22, 22)` with a diameter of `20` and a white stroke
-    // let circle = Circle::new(Point::new(22, 22), 20)
-    //     .into_styled(PrimitiveStyle::with_stroke(Rgb888::WHITE, 1));
-
-    // circle.draw(&mut display);
-
-    // Update the display
-    // display.flush().unwrap();
 }
-
-fn backlight_init() {}
-
-// pub fn set_pin(i2c: &mut I2c<Async>, pin: u8, state: bool) {
-//     println!("Set Pin");
-
-//     let mut return_bytes: &mut [u8] = &mut [0; 20];
-//     let mut data: u8 = 0;
-//     let bits_status: u8 = 0;
-//     let _ = i2c.read(TCA9554_ADDRESS, &mut return_bytes);
-
-//     for byte in return_bytes {
-//         println!("byte: {:#b}", byte);
-//     }
-
-//     if pin < 9 && pin > 0 {
-//         if state {
-//             // (0x01 << (pin-1)) -> Byte with 1 in pin position
-//             // (0x01 << (pin-1)) | bits_status -> bits_status with 1 at pin position
-//             data = (0x01 << (pin - 1)) | bits_status;
-//         } else {
-//             data = !(0x01 << (pin - 1)) & bits_status;
-//         }
-//         println!("Writing to pin: {:#b}", data);
-//         let _ = i2c.write(TCA9554_OUTPUT_REG, &[data]);
-//     } else {
-//         println!("Parameter error, please enter the correct parameter!");
-//     }
-// }
