@@ -4,7 +4,7 @@ use embassy_time::{Duration, Timer};
 use init_cmd::LCD_INIT_CMD;
 
 extern crate alloc;
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 
 // use heapless::Vec;
 use embedded_graphics::{
@@ -34,6 +34,7 @@ use crate::exio::{self, PinDirection, PinState};
 const COLOR_DEPTH: usize = 24; // 24-bit colour
 const DISPLAY_WIDTH: u32 = 412;
 const DISPLAY_HEIGHT: u32 = 412;
+const COLOR_BYTES: usize = 3;
 const BUFFER_SIZE: u32 = DISPLAY_WIDTH * DISPLAY_HEIGHT * 3; // 8-bits per colour
 
 // The format is [ OPCODE, 0, CMD, 0, 0, PARAMS ]
@@ -300,9 +301,9 @@ pub fn init2(spi: &mut Spi<Blocking>) {
 pub async fn reset(i2c: &mut I2c<'_, Blocking>) {
     println!("Reset display");
     exio::set_pin_direction(i2c, EXIO_LCD_RESET_PIN, PinDirection::Output);
-    exio::set_pin(i2c, EXIO_LCD_RESET_PIN, PinState::High);
-    Timer::after(Duration::from_millis(100)).await;
     exio::set_pin(i2c, EXIO_LCD_RESET_PIN, PinState::Low);
+    Timer::after(Duration::from_millis(100)).await;
+    exio::set_pin(i2c, EXIO_LCD_RESET_PIN, PinState::High);
     Timer::after(Duration::from_millis(100)).await;
 }
 
@@ -325,10 +326,10 @@ pub fn tx_command_data(spi: &mut Spi<Blocking>, command: u8, data: &[u8]) {
     buffer.extend_from_slice(&start);
     buffer.extend_from_slice(data);
 
-    println!("in:  {buffer:?}");
+    // println!("in:  {buffer:?}");
     let result = spi.transfer(&mut buffer);
 
-    println!("out: {result:?}");
+    // println!("out: {result:?}");
 }
 
 pub fn tx_color(spi: &mut Spi<Blocking>, command: u8, data: &[u8]) {
@@ -338,14 +339,20 @@ pub fn tx_color(spi: &mut Spi<Blocking>, command: u8, data: &[u8]) {
     // let full_data_iter = start.iter().chain(data.iter());
     // let full_data: Vec<u8> = Vec::from_iter(full_data_iter);
 
-    let mut buffer = Vec::with_capacity(4 + data.len());
-    buffer.extend_from_slice(&start);
-    buffer.extend_from_slice(data);
+    let buffer = Box::<[u8]>::try_new_uninit_slice(4 + data.len()).unwrap();
+    let mut buffer = unsafe {
+        buffer.assume_init()
+    };
+    // let mut buffer = Vec::with_capacity(4 + data.len());
+    buffer[..4].clone_from_slice(&start);
+    buffer[4..].clone_from_slice(data);
+    
+    
 
-    println!("in:  {buffer:?}");
+    // println!("in:  {buffer:?}");
     let result = spi.transfer(&mut buffer);
 
-    println!("out: {result:?}");
+    // println!("out: {result:?}");
 }
 
 pub async fn test_2(spi: &mut Spi<'_, Blocking>) {
@@ -358,48 +365,110 @@ pub async fn test_2(spi: &mut Spi<'_, Blocking>) {
             SPD2010_CMD_SET_USER,
         ],
     );
-    tx_command_data(spi, LCD_CMD_MADCTL, &[0xA0]);
-    tx_command_data(spi, LCD_CMD_COLMOD, &[0x01]);
+    tx_command_data(spi, LCD_CMD_MADCTL, &[0x00]);
+    tx_command_data(spi, LCD_CMD_COLMOD, &[0x77]);
 
     for (cmd, delay, data) in LCD_INIT_CMD {
-        tx_command_data(spi, *cmd, data);
+        // Data: [4, 2, 7]
+        // 
+        
+        // let mut swapped: Vec<u8> = Vec::with_capacity(data.len() + data.len() % 2);
+        
+        // let mut pair: usize = 0;
+        // // let mut temp: u8;
+        // loop {
+        //     // temp = swapped[pair * 2];
+        //     if data.len() > pair * 2 + 1 {
+        //         // swapped[pair * 2] = data[pair * 2 + 1];
+        //         swapped.push(data[pair * 2 + 1]);
+        //     } else {
+        //         swapped.push(0);
+        //     }
+        //     // swapped[pair * 2 + 1] = data[pair * 2];
+        //     swapped.push(data[pair * 2]);
+        //     pair += 1;
+        //     if pair * 2 >= data.len() {
+        //         break;
+        //     }
+        // }
+        
+        // println!("Before: {:?}", data);
+        // println!("After: {:?}", swapped);
+        
+        tx_command_data(spi, *cmd, &data);
         Timer::after(Duration::from_millis(*delay as u64)).await;
     }
-    
-    let color_data: [u8; 3*3*3] = [
-        0xFF, 0x66, 0x22,
-        0xFF, 0x66, 0x22,
-        0xFF, 0x66, 0x22,
-        0xFF, 0x66, 0x22,
-        0xFF, 0x66, 0x22,
-        0xFF, 0x66, 0x22,
-        0xFF, 0x66, 0x22,
-        0xFF, 0x66, 0x22,
-        0xFF, 0x66, 0x22,
-    ];
-    
-    display_on(spi);
-    
-    tx_command(spi, LCD_CMD_INVON);
-    
-    println!("\nREADING\n");
-    
-    let opcode = LCD_OPCODE_READ_CMD;
-    let mut data: [u8; 9] = [opcode, 0x00, LCD_CMD_RDDST, 0x00, 0x00, 0, 0, 0, 0];
 
+    tx_command_data(spi, LCD_CMD_COLMOD, &[0x77]);
+    
+    // let color_data: [u8; 3 * 3 * 3] = [
+    //     0xFF, 0x66, 0x22, 0xFF, 0x66, 0x22, 0xFF, 0x66, 0x22, 0xFF, 0x66, 0x22, 0xFF, 0x66, 0x22,
+    //     0xFF, 0x66, 0x22, 0xFF, 0x66, 0x22, 0xFF, 0x66, 0x22, 0xFF, 0x66, 0x22,
+    // ];
+
+    display_on(spi);
+
+    // Invert
+    tx_command(spi, LCD_CMD_INVOFF);
+
+    println!("\nREADING\n");
+
+    let opcode = LCD_OPCODE_READ_CMD;
+    let mut data: [u8; 8] = [opcode, 0x00, LCD_CMD_RDDID, 0x00, 0x00, 0, 0, 0];
+    // let mut out: [u8; 8] = [0; 8];
+    
     let result = spi.transfer(&mut data);
     println!("out: {result:?}");
+    println!("out: {data:?}");
+    // println!("out: {out:?}");
+
+    // return;
     
     // tx_command_data(spi, LCD_CMD_RDD_MADCTL, &[0,0,0]);
+    let line_data = Box::<[u8]>::try_new_uninit_slice(DISPLAY_WIDTH as usize * COLOR_BYTES).unwrap();
+    // We must write to all of line_data before reading
+    let mut line_data = unsafe { line_data.assume_init() };
+    // let mut line_data = Box::<[u8]>::try_new_uninit_slice(412 * 3).unwrap();
+    // let mut line_data: Vec<u8>;
     
-    draw_bitmap(spi, 204, 204, 207, 207, &color_data);
+    let mut rand: u8 = 0;
+
+    // ranges dont include the end value so this runs for 0 - 411
+    for line in 0..DISPLAY_HEIGHT as u16 {
+        // line_data = Vec::with_capacity(412 * 3);
+        for x in 0..DISPLAY_WIDTH as usize {
+            for color_byte in 0..3 {
+                line_data[x * 3 + color_byte] = rand;
+                rand = rand.wrapping_add(1);
+            }
+            // line_data[x * 3 + 0] = 0x00;
+            // line_data[x * 3 + 1] = (line / 2) as u8;
+            // line_data[x * 3 + 2] = (x / 2) as u8;
+            // line_data[x * 3 + 3] = 0x00;
+            // line_data[x * 3 + 4] = 0x00;
+            // line_data[x * 3 + 5] = 0x00;
+        }
+        
+        println!("write line {} with len {}", line, line_data.len());
+        draw_bitmap(spi, 0, line as u16, 411, line + 1 as u16, &line_data);
+    }
+
+    // tx_command_data(spi, LCD_CMD_);
+    // draw_bitmap(spi, 204, 204, 207, 207, &color_data);
 }
 
 pub fn display_on(spi: &mut Spi<'_, Blocking>) {
     tx_command_data(spi, LCD_CMD_DISPON, &[]);
 }
 
-pub fn draw_bitmap(spi: &mut Spi<'_, Blocking>, x1: u16, y1: u16, x2: u16, y2: u16, color_data: &[u8]) {
+pub fn draw_bitmap(
+    spi: &mut Spi<'_, Blocking>,
+    x1: u16,
+    y1: u16,
+    x2: u16,
+    y2: u16,
+    color_data: &[u8],
+) {
     // [ x1 (byte 2), x1 (byte 1), x2 (byte 2), x2 (byte 1) ]
     // 2 before 1 because Endian and stuff
     let x_set_data: [u8; 4] = [
@@ -408,18 +477,20 @@ pub fn draw_bitmap(spi: &mut Spi<'_, Blocking>, x1: u16, y1: u16, x2: u16, y2: u
         ((x2 >> 8) & 0xFF) as u8,
         (x2 & 0xFF) as u8,
     ];
+    println!("x pos data: {:?}", x_set_data);
     tx_command_data(spi, LCD_CMD_CASET, &x_set_data);
-    
+
     let y_set_data: [u8; 4] = [
         ((y1 >> 8) & 0xFF) as u8,
         (y1 & 0xFF) as u8,
         ((y2 >> 8) & 0xFF) as u8,
         (y2 & 0xFF) as u8,
     ];
+    println!("y pos data: {:?}", y_set_data);
     tx_command_data(spi, LCD_CMD_RASET, &y_set_data);
-    
+
     // Transfer frame buffer
-    
+
     // let len = (x2 - x1) * (y2 - y1) * 3; // 3 bytes per pixel
     tx_color(spi, LCD_CMD_RAMWR, color_data)
 }

@@ -1537,6 +1537,7 @@ dependencies = [
  "esp-wifi",
  "fugit",
  "heapless",
+ "libm",
  "pcf8563",
  "qmi8658",
  "smoltcp",
