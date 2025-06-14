@@ -24,7 +24,7 @@ use esp_hal::{
     },
     peripherals::LEDC,
     spi::{
-        master::{Address, Command, Spi},
+        master::{Address, Command, Spi, SpiDma, SpiDmaBus},
         DataMode,
     },
     time::Rate,
@@ -203,9 +203,9 @@ pub async fn reset(i2c: &mut I2c<'_, Blocking>) {
     Timer::after(Duration::from_millis(100)).await;
 }
 
-pub fn tx_command(spi: &mut Spi<Blocking>, command: u8) {
+pub fn tx_command(qspi: &mut SpiDmaBus<'_, Blocking>, command: u8) {
     let address_value = (command as u32) << 8;
-    spi.half_duplex_write(
+    qspi.half_duplex_write(
         DataMode::Single,
         Command::_8Bit(LCD_OPCODE_WRITE_CMD as u16, DataMode::Single),
         Address::_24Bit(address_value, DataMode::Single),
@@ -214,9 +214,9 @@ pub fn tx_command(spi: &mut Spi<Blocking>, command: u8) {
     );
 }
 
-pub fn tx_command_data(spi: &mut Spi<Blocking>, command: u8, data: &[u8]) {
+pub fn tx_command_data(qspi: &mut SpiDmaBus<'_, Blocking>, command: u8, data: &[u8]) {
     let address_value = (command as u32) << 8;
-    spi.half_duplex_write(
+    qspi.half_duplex_write(
         DataMode::Single,
         Command::_8Bit(LCD_OPCODE_WRITE_CMD as u16, DataMode::Single),
         Address::_24Bit(address_value, DataMode::Single),
@@ -225,18 +225,30 @@ pub fn tx_command_data(spi: &mut Spi<Blocking>, command: u8, data: &[u8]) {
     );
 }
 
-pub fn tx_color(spi: &mut Spi<Blocking>, command: u8, data: &[u8]) {
+pub fn tx_color(qspi: &mut SpiDmaBus<'_, Blocking>, command: u8, data: &[u8]) {
     let address_value = (command as u32) << 8;
-    spi.half_duplex_write(
-        DataMode::Quad,
+    let result = qspi.half_duplex_write(
+        DataMode::Single,
         Command::_8Bit(LCD_OPCODE_WRITE_COLOR as u16, DataMode::Single),
         Address::_24Bit(address_value, DataMode::Single),
         0,
         data,
     );
+    // dbg!(result);
 }
 
-pub async fn test(spi: &mut Spi<'_, Blocking>) {
+pub async fn test(qspi: &mut SpiDmaBus<'_, Blocking>) {
+    // let result = spi.half_duplex_write(
+    //     DataMode::Single,
+    //     Command::_8Bit(LCD_OPCODE_WRITE_COLOR as u16, DataMode::Single),
+    //     Address::_24Bit(0x5C, DataMode::Single),
+    //     0,
+    //     &[0x44],
+    // );
+    // dbg!(result);
+    
+    // return;
+    
     // tx_command_data(
     //     spi,
     //     SPD2010_CMD_SET,
@@ -282,11 +294,11 @@ pub async fn test(spi: &mut Spi<'_, Blocking>) {
     // Timer::after(Duration::from_millis(120)).await;
     
     for (cmd, delay, data) in LCD_INIT_CMD {
-        tx_command_data(spi, *cmd, &data);
+        tx_command_data(qspi, *cmd, &data);
         Timer::after(Duration::from_millis(*delay as u64)).await;
     }
     
-    display_on(spi);
+    display_on(qspi);
 
     // Invert
     // tx_command_data_new(spi, LCD_CMD_INVON, &[]);
@@ -307,24 +319,39 @@ pub async fn test(spi: &mut Spi<'_, Blocking>) {
             //     rand = rand.wrapping_add(1);
             // }
             line_data[x * 3 + 0] = 0xff;
-            line_data[x * 3 + 1] = 255 - (line / 2) as u8;
-            line_data[x * 3 + 2] = 255 - (x / 2) as u8;
+            line_data[x * 3 + 1] = 0x00;
+            line_data[x * 3 + 2] = 0x00;
+            // line_data[x * 12 + 1] = 0xff;
+            // line_data[x * 12 + 2] = 0x00;
+            // line_data[x * 12 + 3] = 0xff;
+            // line_data[x * 12 + 3] = 0xff;
+            // line_data[x * 12 + 4] = 0x00;
+            // line_data[x * 12 + 5] = 0xff;
+            // line_data[x * 12 + 6] = 0xff;
+            // line_data[x * 12 + 7] = 0x00;
+            // line_data[x * 12 + 8] = 0xff;
+            // line_data[x * 12 + 9] = 0xff;
+            // line_data[x * 12 + 10] = 0x00;
+            // line_data[x * 12 + 11] = 0xff;
+            // line_data[x * 3 + 1] = 255 - (line / 2) as u8;
+            // line_data[x * 3 + 2] = 255 - (x / 2) as u8;
+            // 
             // line_data[x * 3 + 3] = 0x00;
             // line_data[x * 3 + 4] = 0x00;
             // line_data[x * 3 + 5] = 0x00;
         }
 
         // println!("write line {} with len {}", line, line_data.len());
-        draw_bitmap(spi, 0, line as u16, 411, line + 1 as u16, &line_data);
+        draw_bitmap(qspi, 0, line as u16, DISPLAY_WIDTH as u16 - 1, line + 1 as u16, &line_data);
     }
 }
 
-pub fn display_on(spi: &mut Spi<'_, Blocking>) {
-    tx_command_data(spi, LCD_CMD_DISPON, &[]);
+pub fn display_on(qspi: &mut SpiDmaBus<'_, Blocking>) {
+    tx_command_data(qspi, LCD_CMD_DISPON, &[]);
 }
 
 pub fn draw_bitmap(
-    spi: &mut Spi<'_, Blocking>,
+    qspi: &mut SpiDmaBus<'_, Blocking>,
     x1: u16,
     y1: u16,
     x2: u16,
@@ -340,7 +367,7 @@ pub fn draw_bitmap(
         (x2 & 0xFF) as u8,
     ];
     // println!("x pos data: {:?}", x_set_data);
-    tx_command_data(spi, LCD_CMD_CASET, &x_set_data);
+    tx_command_data(qspi, LCD_CMD_CASET, &x_set_data);
 
     let y_set_data: [u8; 4] = [
         (y1 >> 8) as u8,
@@ -349,10 +376,19 @@ pub fn draw_bitmap(
         (y2 & 0xFF) as u8,
     ];
     // println!("y pos data: {:?}", y_set_data);
-    tx_command_data(spi, LCD_CMD_RASET, &y_set_data);
+    tx_command_data(qspi, LCD_CMD_RASET, &y_set_data);
 
     // Transfer frame buffer
 
     // let len = (x2 - x1) * (y2 - y1) * 3; // 3 bytes per pixel
-    tx_color(spi, LCD_CMD_RAMWR, color_data)
+    
+    let mut is_first = true;
+    for chunk in color_data.chunks(1000) {
+        if is_first {
+            tx_color(qspi, LCD_CMD_RAMWR, chunk);
+                is_first = false;
+        } else {
+            tx_color(qspi, LCD_CMD_RAMWRC, chunk);
+        }
+    }
 }

@@ -4,6 +4,7 @@
 
 use alloc::vec::Vec;
 use embedded_hal::spi::SpiBus;
+use esp_hal::dma::{DmaRxBuf, DmaTxBuf};
 use esp_hal::dma_buffers;
 use esp_hal::i2s::master::{DataFormat, I2s, Standard};
 use watch_playground::exio::{PinDirection, PinState};
@@ -37,6 +38,8 @@ use esp_hal::{
 use esp_println::{dbg, println};
 use pcf8563::{self, DateTime, Time, PCF8563};
 // use pcf85063a::{self, Control, DateTime};
+
+const DMA_CHUNK_SIZE: usize = 16380;
 
 const ESP_PANEL_LCD_SPI_IO_TE: u8 = 18;
 const ESP_PANEL_LCD_SPI_IO_SCK: u8 = 40;
@@ -114,6 +117,10 @@ async fn main(spawner: Spawner) {
     let sio2 = peripherals.GPIO42;
     let sio3 = peripherals.GPIO41;
 
+    let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(DMA_CHUNK_SIZE);
+        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
+        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
+    
     let frequency = Rate::from_mhz(ESP_PANEL_LCD_SPI_CLK_MHZ);
 
     let mut spi = Spi::new(
@@ -128,9 +135,9 @@ async fn main(spawner: Spawner) {
     .with_sio0(sio0)
     .with_sio1(sio1)
     .with_sio2(sio2)
-    .with_sio3(sio3);
-    // .with_dma(peripherals.DMA_CH0);
-    // .with_buffers(dma_rx_buf, dma_tx_buf);
+    .with_sio3(sio3)
+    .with_dma(peripherals.DMA_CH1)
+    .with_buffers(dma_rx_buf, dma_tx_buf);
 
     display::reset(&mut i2c).await;
     display::test(&mut spi).await;
