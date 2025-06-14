@@ -133,7 +133,7 @@ async fn main(spawner: Spawner) {
     // .with_buffers(dma_rx_buf, dma_tx_buf);
 
     display::reset(&mut i2c).await;
-    display::test_2(&mut spi).await;
+    display::test(&mut spi).await;
     
     println!("Reset touch");
     touch::reset(&mut i2c).await;
