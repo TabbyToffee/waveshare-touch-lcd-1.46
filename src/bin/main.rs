@@ -119,7 +119,7 @@ async fn main(spawner: Spawner) {
     let mut spi = Spi::new(
         peripherals.SPI2,
         spi::master::Config::default()
-            .with_mode(spi::Mode::_0)
+            .with_mode(spi::Mode::_3)
             .with_frequency(frequency),
     )
     .unwrap()
@@ -129,6 +129,8 @@ async fn main(spawner: Spawner) {
     .with_sio1(sio1)
     .with_sio2(sio2)
     .with_sio3(sio3);
+    // .with_dma(peripherals.DMA_CH0);
+    // .with_buffers(dma_rx_buf, dma_tx_buf);
 
     display::reset(&mut i2c).await;
     display::test_2(&mut spi).await;
