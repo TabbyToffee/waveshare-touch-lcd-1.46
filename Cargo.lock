@@ -533,19 +533,6 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "esp-alloc"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a78132d362cbf62ce22a1466eb9e98424f6b2d1e476e7a3cb46ca9063c5833f7"
-dependencies = [
- "cfg-if",
- "critical-section",
- "document-features",
- "enumset",
- "linked_list_allocator",
-]
-
-[[package]]
-name = "esp-alloc"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e95f1de57ce5a6600368f3d3c931b0dfe00501661e96f5ab83bc5cdee031784"
@@ -559,14 +546,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "esp-build"
-version = "0.2.0"
+name = "esp-backtrace"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8aa1c8f9954c9506699cf1ca10a2adcc226ff10b6ae3cb9e875cf2c6a0b9a372"
+checksum = "7c304bbe17df32db8bc0027a9da989aa3efebbd4e7a79d58850deb29e2af577f"
 dependencies = [
- "quote",
- "syn 2.0.103",
- "termcolor",
+ "cfg-if",
+ "esp-build",
+ "esp-config",
+ "esp-metadata",
+ "esp-println",
+ "heapless",
+ "semihosting",
 ]
 
 [[package]]
@@ -578,15 +569,6 @@ dependencies = [
  "quote",
  "syn 2.0.103",
  "termcolor",
-]
-
-[[package]]
-name = "esp-config"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "158dba334d3a2acd8d93873c0ae723ca1037cc78eefe5d6b4c5919b0ca28e38e"
-dependencies = [
- "document-features",
 ]
 
 [[package]]
@@ -626,10 +608,10 @@ dependencies = [
  "embedded-io",
  "embedded-io-async",
  "enumset",
- "esp-build 0.3.0",
- "esp-config 0.4.0",
- "esp-hal-procmacros 0.18.0",
- "esp-metadata 0.7.0",
+ "esp-build",
+ "esp-config",
+ "esp-hal-procmacros",
+ "esp-metadata",
  "esp-riscv-rt",
  "esp-synopsys-usb-otg",
  "esp32s3",
@@ -642,7 +624,7 @@ dependencies = [
  "rand_core 0.9.3",
  "riscv",
  "serde",
- "strum 0.27.1",
+ "strum",
  "ufmt-write",
  "xtensa-lx",
  "xtensa-lx-rt",
@@ -650,10 +632,11 @@ dependencies = [
 
 [[package]]
 name = "esp-hal-embassy"
-version = "0.7.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b27f41110117a9bf2be385b42535c686b301c8ce3b5ea0a07567e200a63a2239"
+checksum = "87807cdf22124ba46dbac7d7f6d3ee2e7f06c4e461f3783443464d868101647d"
 dependencies = [
+ "cfg-if",
  "critical-section",
  "document-features",
  "embassy-executor",
@@ -661,29 +644,13 @@ dependencies = [
  "embassy-time",
  "embassy-time-driver",
  "embassy-time-queue-utils",
- "esp-build 0.2.0",
- "esp-config 0.3.1",
+ "esp-build",
+ "esp-config",
  "esp-hal",
- "esp-hal-procmacros 0.17.0",
- "esp-metadata 0.6.0",
+ "esp-hal-procmacros",
+ "esp-metadata",
  "portable-atomic",
  "static_cell",
-]
-
-[[package]]
-name = "esp-hal-procmacros"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bd340a20a7d546570af58fd9e2aae17466a42572680d8e70d35fc7c475c4ed8"
-dependencies = [
- "darling",
- "document-features",
- "litrs 0.4.1",
- "proc-macro-crate",
- "proc-macro-error2",
- "proc-macro2",
- "quote",
- "syn 2.0.103",
 ]
 
 [[package]]
@@ -705,18 +672,6 @@ dependencies = [
 
 [[package]]
 name = "esp-metadata"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30b4bffc22b7b1222c9467f0cb90eb49dcb63de810ecb3300e4b3bbc4ac2423e"
-dependencies = [
- "anyhow",
- "basic-toml",
- "serde",
- "strum 0.26.3",
-]
-
-[[package]]
-name = "esp-metadata"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0154d59933c2419ef25a01938517cc6969f47b6af53ebb34c279393aa20d9654"
@@ -724,17 +679,19 @@ dependencies = [
  "anyhow",
  "basic-toml",
  "serde",
- "strum 0.27.1",
+ "strum",
 ]
 
 [[package]]
 name = "esp-println"
-version = "0.13.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "960703930f9f3c899ddedd122ea27a09d6a612c22323157e524af5b18876448e"
+checksum = "fae8b38d5fdc1d29d823c4737f18edfb0ccf0406985cf893f87c0cfc26a6ab33"
 dependencies = [
  "critical-section",
- "esp-build 0.2.0",
+ "document-features",
+ "esp-build",
+ "esp-metadata",
  "log",
  "portable-atomic",
 ]
@@ -778,11 +735,11 @@ dependencies = [
  "embedded-io",
  "embedded-io-async",
  "enumset",
- "esp-alloc 0.8.0",
- "esp-build 0.3.0",
- "esp-config 0.4.0",
+ "esp-alloc",
+ "esp-build",
+ "esp-config",
  "esp-hal",
- "esp-metadata 0.7.0",
+ "esp-metadata",
  "esp-wifi-sys",
  "num-derive",
  "num-traits",
@@ -1346,6 +1303,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
+name = "semihosting"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3e1c7d2b77d80283c750a39c52f1ab4d17234e8f30bca43550f5b2375f41d5f"
+
+[[package]]
 name = "serde"
 version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1422,33 +1385,11 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum"
-version = "0.26.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
-dependencies = [
- "strum_macros 0.26.4",
-]
-
-[[package]]
-name = "strum"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f64def088c51c9510a8579e3c5d67c65349dcf755e5479ad3d010aa6454e2c32"
 dependencies = [
- "strum_macros 0.27.1",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.26.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn 2.0.103",
+ "strum_macros",
 ]
 
 [[package]]
@@ -1663,7 +1604,8 @@ dependencies = [
  "embedded-hal 1.0.0",
  "embedded-io",
  "embedded-io-async",
- "esp-alloc 0.7.0",
+ "esp-alloc",
+ "esp-backtrace",
  "esp-hal",
  "esp-hal-embassy",
  "esp-println",
@@ -1790,7 +1732,7 @@ dependencies = [
  "minijinja",
  "r0",
  "serde",
- "strum 0.27.1",
+ "strum",
  "toml",
  "xtensa-lx",
  "xtensa-lx-rt-proc-macros",

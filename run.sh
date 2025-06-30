@@ -1,0 +1,1 @@
+ESP_HAL_CONFIG_PSRAM_MODE=octal cargo r --release

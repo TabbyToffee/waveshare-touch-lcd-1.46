@@ -1,4 +1,4 @@
-use esp_hal::{dma::DmaChannel0, dma_buffers, gpio::GpioPin, i2s::master::{DataFormat, I2s, Standard}, peripherals::{self, Peripherals}, time::Rate, Blocking};
+use esp_hal::{dma_buffers, i2s::master::{DataFormat, I2s, Standard}, peripherals::{self, Peripherals, DMA_CH0, GPIO38, GPIO47, GPIO48}, time::Rate, Blocking};
 use esp_println::{dbg, println};
 use libm;
 
@@ -34,7 +34,7 @@ impl Iterator for Noise {
     }
 }
 
-pub fn test(i2s_peripheral: peripherals::I2S0, dma_channel: DmaChannel0, bclk: GpioPin<48>, din: GpioPin<47>, ws: GpioPin<38>) {
+pub fn test(i2s_peripheral: peripherals::I2S0, dma_channel: DMA_CH0, bclk: GPIO48, din: GPIO47, ws: GPIO38) {
     // let i2s_peripheral = peripherals.I2S0;
     // let i2s_dma_channel = peripherals.DMA_CH0;
     // Bit clock (SCLK / BCK)
@@ -46,14 +46,14 @@ pub fn test(i2s_peripheral: peripherals::I2S0, dma_channel: DmaChannel0, bclk: G
     // i2s::init(i2s_peripheral, i2s_dma_channel);
     const I2S_BYTES: usize = 4096;
     let (mut rx_buffer, rx_descriptors, _, tx_descriptors) = dma_buffers!(32 * I2S_BYTES, 32 * I2S_BYTES);
-    let mut i2s = I2s::new(i2s_peripheral, Standard::Philips, DataFormat::Data16Channel16, Rate::from_hz(22050), dma_channel, rx_descriptors, tx_descriptors);
+    let mut i2s = I2s::new(i2s_peripheral, Standard::Philips, DataFormat::Data16Channel16, Rate::from_hz(22050), dma_channel);
     // let mut i2s = I2s::new(i2s_peripheral, Standard::Philips, DataFormat::Data16Channel16, Rate::from_hz(100), i2s_dma_channel, rx_descriptors, tx_descriptors);
     
     // let mut i2s_rx = i2s.i2s_rx.with_bclk(bclk).with_ws(ws).with_din(din).build();
     
     // let mut transfer = i2s_rx.read_dma_circular(&mut rx_buffer).unwrap();
     
-    let mut i2s_tx = i2s.i2s_tx.with_bclk(bclk).with_ws(ws).with_dout(din).build();
+    let mut i2s_tx = i2s.i2s_tx.with_bclk(bclk).with_ws(ws).with_dout(din).build(tx_descriptors);
     
     let mut transfer = i2s_tx.write_dma_circular(&mut rx_buffer).unwrap();
     

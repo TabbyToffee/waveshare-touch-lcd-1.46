@@ -1,4 +1,5 @@
-use esp_hal::gpio::{GpioPin, InputConfig, Pull};
+use esp_hal::gpio::{InputConfig, Pull};
+use esp_hal::peripherals::GPIO6;
 use esp_hal::{gpio::Input};
 use esp_println::println;
 
@@ -6,7 +7,7 @@ use esp_println::println;
 use embassy_time::{Duration, Timer};
 
 
-async fn loop_btn_test(pwr_btn_pin: GpioPin<6>) {
+async fn loop_btn_test(pwr_btn_pin: GPIO6<'_>) {
     let config = InputConfig::default().with_pull(Pull::Up);
     let mut button = Input::new(pwr_btn_pin, config);
     
