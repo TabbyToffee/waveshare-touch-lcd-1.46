@@ -5,31 +5,33 @@ use embedded_graphics::{
 };
 use esp_alloc::HeapStats;
 use esp_hal::{
-    DriverMode,
-    spi::{
-        self, DataMode,
-        master::{Address, Command, SpiDmaBus},
-    },
+    gpio::{Input, InputConfig, InputPin, Pull}, spi::{
+        self, master::{Address, Command, SpiDmaBus}, DataMode
+    }, DriverMode
 };
 use esp_println::{dbg, println};
 
+use crate::display::COLOR_BYTES;
+
 use super::{
-    init_cmd::LCD_INIT_CMD, BUFFER_SIZE, COLOR_BYTES, DISPLAY_HEIGHT, DISPLAY_WIDTH, DMA_CHUNK_SIZE, lcd_command, opcode
+    init_cmd::LCD_INIT_CMD, lcd_command, opcode, BUFFER_SIZE, DISPLAY_HEIGHT, DISPLAY_WIDTH, DISPLAY_X_MAX, DISPLAY_Y_MAX, DMA_CHUNK_SIZE
 };
 
 pub struct Spd2010<'a, Dm>
 where
     Dm: DriverMode,
+    
 {
     qspi: SpiDmaBus<'a, Dm>,
     pub framebuffer: Box<[u8]>,
+    tear_input: Input<'a>,
 }
 
 impl<'a, Dm> Spd2010<'a, Dm>
 where
     Dm: DriverMode,
 {
-    pub fn new(qspi: SpiDmaBus<'a, Dm>) -> Self {
+    pub fn new(qspi: SpiDmaBus<'a, Dm>, tear_pin: impl InputPin + 'a) -> Self {
         // let mut buffer = [0_u8; 1024];
 
         println!("new 1");
@@ -41,16 +43,11 @@ where
         // let stats: HeapStats = esp_alloc::HEAP.stats();
         // println!("{}", stats);
 
-        let x = Self { qspi, framebuffer };
+        
+        let config = InputConfig::default().with_pull(Pull::Up);
+        let mut tear_input = Input::new(tear_pin, config);
 
-        let stats: HeapStats = esp_alloc::HEAP.stats();
-        println!("{}", stats);
-
-        println!("test drop");
-
-        println!("about to return");
-
-        x
+        Self { qspi, framebuffer, tear_input }
     }
 
     fn set_draw_pos(&mut self, x1: u16, y1: u16, x2: u16, y2: u16) -> Result<(), spi::Error> {
@@ -130,6 +127,7 @@ where
         
         // let mut chunk_buffer: [u8; DMA_CHUNK_SIZE] = [0; DMA_CHUNK_SIZE];
         
+        while self.tear_input.is_low() {}
         let mut is_first = true;
         for chunk in self.framebuffer.chunks(DMA_CHUNK_SIZE) {
             // chunk_buffer.clone_from_slice(chunk);
@@ -234,12 +232,18 @@ where
         I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
     {
         for Pixel(coord, color) in pixels.into_iter() {
-            if let Ok((x @ 0..=DISPLAY_WIDTH, y @ 0..=DISPLAY_HEIGHT)) = coord.try_into() {
+            if let Ok((x @ 0..=DISPLAY_X_MAX, y @ 0..=DISPLAY_Y_MAX)) = coord.try_into() {
                 // Calculate the index in the framebuffer.
-                let pixel_index: u32 = (y * DISPLAY_WIDTH + x) * 3;
-                self.framebuffer[pixel_index as usize] = color.r();
-                self.framebuffer[pixel_index as usize + 1] = color.g();
-                self.framebuffer[pixel_index as usize + 2] = color.b();
+                let pixel_index: u32 = ((y * (DISPLAY_WIDTH - 1)) + x) * COLOR_BYTES as u32;
+                println!("{x}, {y} -> {pixel_index}");
+                // self.framebuffer[pixel_index as usize] = color.r();
+                // self.framebuffer[pixel_index as usize + 1] = color.g();
+                // self.framebuffer[pixel_index as usize + 2] = color.b();
+                self.framebuffer[pixel_index as usize] = 255;
+                self.framebuffer[pixel_index as usize + 1] = 255;
+                self.framebuffer[pixel_index as usize + 2] = 255;
+                println!("{}", self.framebuffer[pixel_index as usize]);
+                
             }
         }
 

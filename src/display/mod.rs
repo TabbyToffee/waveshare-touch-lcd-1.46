@@ -39,6 +39,8 @@ use crate::exio::{self, PinDirection, PinState};
 
 const DISPLAY_WIDTH: u32 = 412;
 const DISPLAY_HEIGHT: u32 = 412;
+const DISPLAY_X_MAX: u32 = DISPLAY_WIDTH - 1;
+const DISPLAY_Y_MAX: u32 = DISPLAY_HEIGHT - 1;
 // const DISPLAY_WIDTH: u32 = 192;
 // const DISPLAY_HEIGHT: u32 = 192;
 const COLOR_BYTES: usize = 3;
