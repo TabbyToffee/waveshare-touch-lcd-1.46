@@ -9,8 +9,8 @@ use display::DMA_CHUNK_SIZE;
 
 use embedded_graphics::Drawable;
 use embedded_graphics::pixelcolor::Rgb888;
-use embedded_graphics::prelude::{Point, Primitive, WebColors};
-use embedded_graphics::primitives::{Circle, PrimitiveStyle};
+use embedded_graphics::prelude::{Point, Primitive, RgbColor, Size, WebColors};
+use embedded_graphics::primitives::{Circle, PrimitiveStyle, Rectangle};
 use esp_alloc::HeapStats;
 // use embedded_hal::spi::SpiBus;
 use esp_hal::dma::{DmaRxBuf, DmaTxBuf};
@@ -253,14 +253,15 @@ async fn main(spawner: Spawner) {
     let result = spd2010.flush().await;
     dbg!(result);
 
-    Timer::after(Duration::from_secs(2)).await;
-    let circle = Circle::new(Point::new_equal(205), 50)
-        .into_styled(PrimitiveStyle::with_stroke(Rgb888::CSS_PURPLE, 1));
+    // Timer::after(Duration::from_secs(2)).await;
+    let circle = Circle::new(Point::new_equal(205 - 25), 50)
+        .into_styled(PrimitiveStyle::with_fill(Rgb888::WHITE));
     let result = circle.draw(&mut spd2010);
     dbg!(result);
     
-    spd2010.flush();
+    spd2010.flush().await;
     
+    return;
     Timer::after(Duration::from_secs(2)).await;
 
     // let config = InputConfig::default().with_pull(Pull::Up);

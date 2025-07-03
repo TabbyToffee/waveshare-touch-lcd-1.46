@@ -234,15 +234,15 @@ where
         for Pixel(coord, color) in pixels.into_iter() {
             if let Ok((x @ 0..=DISPLAY_X_MAX, y @ 0..=DISPLAY_Y_MAX)) = coord.try_into() {
                 // Calculate the index in the framebuffer.
-                let pixel_index: u32 = ((y * (DISPLAY_WIDTH - 1)) + x) * COLOR_BYTES as u32;
-                println!("{x}, {y} -> {pixel_index}");
-                // self.framebuffer[pixel_index as usize] = color.r();
-                // self.framebuffer[pixel_index as usize + 1] = color.g();
-                // self.framebuffer[pixel_index as usize + 2] = color.b();
-                self.framebuffer[pixel_index as usize] = 255;
-                self.framebuffer[pixel_index as usize + 1] = 255;
-                self.framebuffer[pixel_index as usize + 2] = 255;
-                println!("{}", self.framebuffer[pixel_index as usize]);
+                let pixel_index: u32 = ((y * (DISPLAY_WIDTH)) + x) * COLOR_BYTES as u32;
+                // println!("{x}, {y} -> {pixel_index}");
+                self.framebuffer[pixel_index as usize] = color.r();
+                self.framebuffer[pixel_index as usize + 1] = color.g();
+                self.framebuffer[pixel_index as usize + 2] = color.b();
+                // self.framebuffer[pixel_index as usize] = 255;
+                // self.framebuffer[pixel_index as usize + 1] = 255;
+                // self.framebuffer[pixel_index as usize + 2] = 255;
+                // println!("{}", self.framebuffer[pixel_index as usize]);
                 
             }
         }
