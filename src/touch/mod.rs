@@ -1,6 +1,6 @@
 use alloc::string::String;
 use embassy_time::{Duration, Timer};
-use esp_hal::{Blocking, i2c::master::I2c};
+use esp_hal::{Async, Blocking, i2c::master::I2c};
 use esp_println::{dbg, println};
 
 use crate::exio::{self, PinDirection, PinState};
@@ -21,7 +21,7 @@ pub async fn write_tp_clear_int_cmd(i2c: &mut I2c<'_, Blocking>) {
     Timer::after(Duration::from_micros(200)).await;
 }
 
-pub async fn reset(i2c: &mut I2c<'_, Blocking>) {
+pub async fn reset(i2c: &mut I2c<'_, Async>) {
     let pin_direction = exio::read_pin_direction(i2c, EXIO_TOUCH_RESET_PIN);
     println!("direction: {:?}", pin_direction);
     exio::set_pin_direction(i2c, EXIO_TOUCH_RESET_PIN, PinDirection::Output);
@@ -31,14 +31,14 @@ pub async fn reset(i2c: &mut I2c<'_, Blocking>) {
     Timer::after(Duration::from_millis(50)).await;
 }
 
-pub fn read_touch(i2c: &mut I2c<'_, Blocking>, reg_addr: u16, reg_data: &mut [u8]) {
+pub fn read_touch(i2c: &mut I2c<'_, Async>, reg_addr: u16, reg_data: &mut [u8]) {
     let mut buf_addr: [u8; 2] = [0; 2];
     buf_addr[0] = (reg_addr >> 8) as u8;
     buf_addr[1] = reg_addr as u8;
     i2c.write_read(SPD2010_ADDR, &buf_addr, reg_data);
 }
 
-pub async fn read_fw_version(i2c: &mut I2c<'_, Blocking>) {
+pub async fn read_fw_version(i2c: &mut I2c<'_, Async>) {
     for reg in (0..128).rev() {
         let input: [u8; 2] = [0, reg];
         let mut read_buffer: [u8; 20] = [0; 20];

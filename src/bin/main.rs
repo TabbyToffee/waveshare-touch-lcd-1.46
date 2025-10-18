@@ -3,9 +3,10 @@
 #![allow(dead_code)]
 #![feature(allocator_api, new_zeroed_alloc)]
 
+use alloc::format;
 use display::config::DMA_CHUNK_SIZE;
 
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::{
     Drawable,
     pixelcolor::Rgb888,
@@ -17,9 +18,13 @@ use esp_alloc::HeapStats;
 use esp_hal::dma::{DmaRxBuf, DmaTxBuf};
 use esp_hal::psram::PsramSize;
 use esp_hal::{dma_buffers, psram};
+use pcf8563::{PCF8563, Time};
 // use smoltcp::time::Duration;
-use watch_playground::display::{config::ESP_PANEL_LCD_SPI_CLK_MHZ, draw::Spd2010};
-use watch_playground::{display, touch};
+use watch_playground::{display, test_rtc};
+use watch_playground::{
+    display::{config::ESP_PANEL_LCD_SPI_CLK_MHZ, draw::Spd2010},
+    speaker,
+};
 
 use embassy_executor::Spawner;
 use esp_backtrace::arch::backtrace;
@@ -99,8 +104,8 @@ async fn main(_spawner: Spawner) {
     // speaker::test(i2s_peripheral, i2s_dma_channel, i2s_bclk, i2s_din, i2s_ws);
 
     // I2C
-    let i2c_sda_pin = peripherals.GPIO11;
     let i2c_scl_pin = peripherals.GPIO10;
+    let i2c_sda_pin = peripherals.GPIO11;
 
     let frequency = Rate::from_khz(400);
     let mut i2c = I2c::new(
@@ -109,7 +114,8 @@ async fn main(_spawner: Spawner) {
     )
     .unwrap()
     .with_sda(i2c_sda_pin)
-    .with_scl(i2c_scl_pin);
+    .with_scl(i2c_scl_pin)
+    .into_async();
 
     // SPI
     let sck = peripherals.GPIO40;
@@ -154,47 +160,76 @@ async fn main(_spawner: Spawner) {
 
     spd2010.init().await.unwrap();
 
-    let font = FontRenderer::new::<fonts::u8g2_font_VCR_OSD_mf>();
-    let text = "Welcome to SteadyTickOS";
+    let font = FontRenderer::new::<fonts::u8g2_font_logisoso92_tn>();
+    // let text = "Welcome to SteadyTickOS";
+    // let text = "Welcome to SteadyTickOS\n13:06";
+    // let text = "13:06";
 
-    font.render_aligned(
-        text,
-        Point::new(206, 206),
-        VerticalPosition::Baseline,
-        HorizontalAlignment::Center,
-        FontColor::Transparent(Rgb888::WHITE),
-        &mut spd2010,
-    )
-    .unwrap();
+    let mut rtc = pcf85063a::PCF85063::new(i2c);
 
-    spd2010.flush().await.unwrap();
+    // test_rtc::test_rtc(&mut rtc).await;
 
-    Timer::after(Duration::from_secs(1)).await;
+    let mut ticker = Ticker::every(Duration::from_secs(1));
 
-    let white = PrimitiveStyleBuilder::new()
-        .fill_color(Rgb888::WHITE)
-        .build();
+    rtc.set_time(&time::Time::MIDNIGHT);
+    // rtc.set_time(&Time {
+    //     hours: 0,
+    //     minutes: 0,
+    //     seconds: 0,
+    // });
 
-    let black = PrimitiveStyleBuilder::new()
-        .fill_color(Rgb888::BLACK)
-        .build();
+    loop {
+        let time = rtc.get_datetime().await.unwrap();
+        let time_text = format!(
+            "{:02}:{:02}:{:02}",
+            time.hour(),
+            time.minute(),
+            time.second()
+        );
 
-    for _ in 0..10 {
-        Rectangle::new(Point::new(0, 0), Size::new(412, 412))
-            .into_styled(white)
-            .draw(&mut spd2010)
-            .unwrap();
+        spd2010.fill();
+
+        font.render_aligned(
+            time_text.as_ref(),
+            Point::new(206, 206),
+            VerticalPosition::Center,
+            HorizontalAlignment::Center,
+            FontColor::Transparent(Rgb888::WHITE),
+            &mut spd2010,
+        )
+        .unwrap();
+
         spd2010.flush().await.unwrap();
-        Timer::after(Duration::from_millis(1000)).await;
-        Rectangle::new(Point::new(0, 0), Size::new(412, 412))
-            .into_styled(black)
-            .draw(&mut spd2010)
-            .unwrap();
-        spd2010.flush().await.unwrap();
-        Timer::after(Duration::from_millis(1000)).await;
+
+        ticker.next().await;
     }
 
-    println!("Goodbye");
-    let stats: HeapStats = esp_alloc::HEAP.stats();
-    println!("{}", stats);
+    // Timer::after(Duration::from_secs(1)).await;
+
+    // let white = PrimitiveStyleBuilder::new()
+    //     .fill_color(Rgb888::WHITE)
+    //     .build();
+
+    // let black = PrimitiveStyleBuilder::new()
+    //     .fill_color(Rgb888::BLACK)
+    //     .build();
+
+    // for _ in 0..10 {
+    //     Rectangle::new(Point::new(0, 0), Size::new(412, 412))
+    //         .into_styled(white)
+    //         .draw(&mut spd2010)
+    //         .unwrap();
+    //     spd2010.flush().await.unwrap();
+    //     Timer::after(Duration::from_millis(1000)).await;
+    //     Rectangle::new(Point::new(0, 0), Size::new(412, 412))
+    //         .into_styled(black)
+    //         .draw(&mut spd2010)
+    //         .unwrap();
+    //     spd2010.flush().await.unwrap();
+    //     Timer::after(Duration::from_millis(1000)).await;
+    // }
+
+    // println!("Goodbye");
+    // let stats: HeapStats = esp_alloc::HEAP.stats();
+    // println!("{}", stats);
 }

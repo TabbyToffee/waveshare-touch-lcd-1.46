@@ -1,0 +1,51 @@
+Good range:
+fub
+crox: 13 - 27
+
+in/inconsolata: NOICE, big, numbers?
+lu/lucida: variants, ok
+logisoso: big, bold
+
+
+
+utopia: Serif
+
+Numbers:
+  u8g2_font_logisoso92_tn
+  u8g2_font_inb63_mn
+
+Display:
+  profont: unique, sans
+  t/ttyp: small, wierd
+  os/old_standard: serif
+
+  scaled down:
+    in: 5/10
+    lu: 6/10 u8g2_font_luRS14_tr/u8g2_font_luRS18_tr
+
+
+  Adobe x11:
+    Sans
+      cour: 7/10
+      helv
+    Serif
+      ncen
+      tim
+
+  chargen_92
+  calibration_gothic: thin
+
+  small:
+    px: wide
+    pxplus
+    unifont
+
+  big:
+    calblk/callite: Integrated Mapping Ltd
+    cardimon_pixel
+    utopia: serif
+    maniac: bubble
+
+Icon:
+  openiconic
+  unifont

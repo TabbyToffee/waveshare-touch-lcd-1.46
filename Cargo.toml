@@ -69,11 +69,13 @@ fugit = "0.3.7"
 embedded-hal = "1.0.0"
 # pcf85063a = "0.1.1"
 pcf8563 = { path = "../pcf8563-rs" }
+pcf85063a = "0.1.1"
 qmi8658 = { git = "https://github.com/IniterWorker/qmi8658?tab=readme-ov-file" }
 libm = "0.2.15"
 esp-backtrace = { version = "0.17.0", features = ["esp32s3", "println"] }
 u8g2-fonts = "0.7.1"
 esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32s3"] }
+time = { version = "0.3.17", default-features = false }
 
 [profile.dev]
 # Rust debug is too slow.

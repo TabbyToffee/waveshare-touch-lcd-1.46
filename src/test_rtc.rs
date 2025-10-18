@@ -1,12 +1,9 @@
 use embassy_time::{Duration, Timer};
-use esp_hal::{
-    i2c::master::I2c,
-    rtc_cntl::Rtc, Blocking,
-};
+use esp_hal::{Blocking, i2c::master::I2c, rtc_cntl::Rtc};
 use esp_println::println;
-use pcf8563::{DateTime, Time, PCF8563};
+use pcf8563::{DateTime, PCF8563, Time};
 
-async fn test_rtc(rtc: &mut PCF8563<I2c<'_, Blocking>>) {
+pub async fn test_rtc(rtc: &mut PCF8563<I2c<'_, Blocking>>) {
     rtc.set_time(&Time {
         hours: 0,
         minutes: 0,

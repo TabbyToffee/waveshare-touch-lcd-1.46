@@ -144,11 +144,11 @@ where
         Ok(())
     }
 
-    // pub fn fill(&mut self) {
-    //     for i in 0..(self.framebuffer.len() - 1) {
-    //         self.framebuffer[i] = 0xff;
-    //     }
-    // }
+    pub fn fill(&mut self) {
+        for i in 0..(self.framebuffer.len() - 1) {
+            self.framebuffer[i] = 0x00;
+        }
+    }
 
     // pub fn fill_2(&mut self) -> Result<(), spi::Error> {
     //     // let line_data =
