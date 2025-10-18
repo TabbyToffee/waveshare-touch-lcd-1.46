@@ -149,29 +149,6 @@ where
             self.framebuffer[i] = 0x00;
         }
     }
-
-    // pub fn fill_2(&mut self) -> Result<(), spi::Error> {
-    //     // let line_data =
-    //     //     Box::<[u8]>::try_new_uninit_slice(DISPLAY_WIDTH as usize * COLOR_BYTES).unwrap();
-    //     // // We must write to all of line_data before reading
-    //     // let mut line_data = unsafe { line_data.assume_init() };
-
-    //     let mut line_data: [u8; 412 * 3] = [0; 412 * 3];
-
-    //     // ranges dont include the end value so this runs for 0 - 411
-    //     for line in 0..(DISPLAY_HEIGHT) as u16 {
-    //         for x in 0..(DISPLAY_WIDTH) as usize {
-    //             line_data[x * 3 + 0] = 255 - (x / 2) as u8;
-    //             line_data[x * 3 + 1] = 255 - (line / 2) as u8;
-    //             line_data[x * 3 + 2] = 0xff;
-    //         }
-
-    //         self.set_draw_pos(0, line as u16, DISPLAY_WIDTH as u16 - 1, line + 1 as u16)?;
-
-    //         Self::send_pixels(&mut self.qspi, lcd_command::RAMWR, &line_data)?;
-    //     }
-    //     Ok(())
-    // }
 }
 
 impl<'a, Dm> DrawTarget for Spd2010<'a, Dm>
