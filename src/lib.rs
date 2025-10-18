@@ -1,13 +1,14 @@
 #![no_std]
 #![feature(allocator_api, new_zeroed_alloc)]
+#![feature(inherent_str_constructors)]
 
 extern crate alloc;
 
 pub mod display;
 pub mod exio;
-pub mod test_rtc;
-pub mod power_btn;
-pub mod touch;
 pub mod gyroscope;
-pub mod speaker;
 pub mod interface;
+pub mod power_btn;
+pub mod speaker;
+pub mod test_rtc;
+pub mod touch;

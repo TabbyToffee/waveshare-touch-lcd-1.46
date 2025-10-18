@@ -1,26 +1,33 @@
 use alloc::boxed::Box;
 use embassy_time::{Duration, Timer};
 use embedded_graphics::{
-    framebuffer, pixelcolor::Rgb888, prelude::{Dimensions, DrawTarget, Point, RgbColor, Size}, primitives::Rectangle, Pixel
+    Pixel,
+    pixelcolor::Rgb888,
+    prelude::{Dimensions, DrawTarget, Point, RgbColor, Size},
+    primitives::Rectangle,
 };
-use esp_alloc::HeapStats;
 use esp_hal::{
-    gpio::{Input, InputConfig, InputPin, Pull}, spi::{
-        self, master::{Address, Command, SpiDmaBus}, DataMode
-    }, DriverMode
+    DriverMode,
+    gpio::{Input, InputConfig, InputPin, Pull},
+    spi::{
+        self,
+        master::{Address, Command, DataMode, SpiDmaBus},
+    },
 };
-use esp_println::{dbg, println};
 
 use crate::display::COLOR_BYTES;
 
 use super::{
-    init_cmd::LCD_INIT_CMD, lcd_command, opcode, BUFFER_SIZE, DISPLAY_HEIGHT, DISPLAY_WIDTH, DISPLAY_X_MAX, DISPLAY_Y_MAX, DMA_CHUNK_SIZE
+    config::{
+        BUFFER_SIZE, DISPLAY_HEIGHT, DISPLAY_WIDTH, DISPLAY_X_MAX, DISPLAY_Y_MAX, DMA_CHUNK_SIZE,
+    },
+    init_cmd::LCD_INIT_CMD,
+    lcd_command, opcode,
 };
 
 pub struct Spd2010<'a, Dm>
 where
     Dm: DriverMode,
-    
 {
     qspi: SpiDmaBus<'a, Dm>,
     pub framebuffer: Box<[u8]>,
@@ -32,22 +39,17 @@ where
     Dm: DriverMode,
 {
     pub fn new(qspi: SpiDmaBus<'a, Dm>, tear_pin: impl InputPin + 'a) -> Self {
-        // let mut buffer = [0_u8; 1024];
-
-        println!("new 1");
         let framebuffer =
             unsafe { Box::<[u8]>::new_zeroed_slice(BUFFER_SIZE as usize).assume_init() };
 
-        println!("new 2");
-
-        // let stats: HeapStats = esp_alloc::HEAP.stats();
-        // println!("{}", stats);
-
-        
         let config = InputConfig::default().with_pull(Pull::Up);
-        let mut tear_input = Input::new(tear_pin, config);
+        let tear_input = Input::new(tear_pin, config);
 
-        Self { qspi, framebuffer, tear_input }
+        Self {
+            qspi,
+            framebuffer,
+            tear_input,
+        }
     }
 
     fn set_draw_pos(&mut self, x1: u16, y1: u16, x2: u16, y2: u16) -> Result<(), spi::Error> {
@@ -97,51 +99,35 @@ where
         )?;
         Ok(())
     }
-    
-    pub fn draw_rect(&mut self, x1: u16, y1: u16, x2: u16, y2: u16, r: u8, g: u8, b: u8) {
-        for x in x1..x2+1 {
-            for y in y1..y2+1 {
-                let index: u32 = 3 * ((y as u32 * DISPLAY_WIDTH) + x as u32);
-                self.framebuffer[(index) as usize] = r;
-                self.framebuffer[(index + 1) as usize] = g;
-                self.framebuffer[(index + 2) as usize] = b;
-            }
-        }
-    }
+
+    // pub fn draw_rect(&mut self, x1: u16, y1: u16, x2: u16, y2: u16, r: u8, g: u8, b: u8) {
+    //     for x in x1..x2 + 1 {
+    //         for y in y1..y2 + 1 {
+    //             let index: u32 = 3 * ((y as u32 * DISPLAY_WIDTH) + x as u32);
+    //             self.framebuffer[(index) as usize] = r;
+    //             self.framebuffer[(index + 1) as usize] = g;
+    //             self.framebuffer[(index + 2) as usize] = b;
+    //         }
+    //     }
+    // }
 
     pub async fn flush(&mut self) -> Result<(), spi::Error> {
-        self.set_draw_pos(0, 0, (DISPLAY_WIDTH as u16) -1, (DISPLAY_HEIGHT as u16) -1)?;
+        self.set_draw_pos(
+            0,
+            0,
+            (DISPLAY_WIDTH as u16) - 1,
+            (DISPLAY_HEIGHT as u16) - 1,
+        )?;
 
-        // let mut i: u8 = 0;
-        // for byte in self.framebuffer.iter_mut() {
-        //     *byte = i;
-        //     i = i.wrapping_add(1);
-        //     // if i == 0 {
-        //     //     Timer::after(Duration::from_millis(10 as u64)).await;
-        //     // }
-        // }
-        
-        // Timer::after(Duration::from_millis(100 as u64)).await;
-        
-        // dbg!(&self.framebuffer);
-        
-        // let mut chunk_buffer: [u8; DMA_CHUNK_SIZE] = [0; DMA_CHUNK_SIZE];
-        
-        while self.tear_input.is_low() {}
+        self.tear_input.wait_for_falling_edge().await;
         let mut is_first = true;
         for chunk in self.framebuffer.chunks(DMA_CHUNK_SIZE) {
-            // chunk_buffer.clone_from_slice(chunk);
-            
             if is_first {
-                // dbg!(chunk);
                 Self::send_pixels(&mut self.qspi, lcd_command::RAMWR, chunk)?;
                 is_first = false;
             } else {
-                // continue;
                 Self::send_pixels(&mut self.qspi, lcd_command::RAMWRC, chunk)?;
             }
-            
-            // Timer::after(Duration::from_millis(50 as u64)).await;
         }
 
         Ok(())
@@ -152,72 +138,40 @@ where
             self.send_command(*cmd, &data)?;
             Timer::after(Duration::from_millis(*delay as u64)).await;
         }
-        
+
         self.send_command(lcd_command::DISPON, &[])?;
 
         Ok(())
     }
 
-    pub fn fill(&mut self) {
-        for i in 0..(self.framebuffer.len() -1) {
-            self.framebuffer[i] = 0xff;
-            
-            // dbg!(self.framebuffer[i]);
-        }
-        
-        
-        // for pixel in self.framebuffer.iter_mut() {
-        //     // dbg!(index % 3);
-        //     *pixel = 0x55;
-        //     // match (index % 3) {
-        //     //     0 => {
-        //     //         *pixel = 0xff;
-        //     //     }
-        //     //     1 => {
-        //     //         *pixel = 0xff;
-        //     //     }
-        //     //     2 => {
-        //     //         *pixel = 0xff;
-        //     //     }
-        //     //     _ => {
-        //     //         panic!("WTF!")
-        //     //     }
-        //     // }
-        // }
-        // // dbg!(&self.framebuffer);
-    }
-    
-    pub fn fill_2(&mut self) -> Result<(), spi::Error> {
-        // let line_data =
-        //     Box::<[u8]>::try_new_uninit_slice(DISPLAY_WIDTH as usize * COLOR_BYTES).unwrap();
-        // // We must write to all of line_data before reading
-        // let mut line_data = unsafe { line_data.assume_init() };
-        
-        let mut line_data: [u8; 412 * 3] = [0; 412 * 3];
-    
-        let mut rand: u8 = 0;
-    
-        // ranges dont include the end value so this runs for 0 - 411
-        for line in 0..(DISPLAY_HEIGHT) as u16 {
-            for x in 0..(DISPLAY_WIDTH) as usize {
-                // for color_byte in 0..3 {
-                //     line_data[x * 3 + color_byte] = rand;
-                //     rand = rand.wrapping_add(1);
-                // }
-                // line_data[x * 3 + 0] = 0x00;
-                // line_data[x * 3 + 1] = 90;
-                // line_data[x * 3 + 2] = 60;
-                line_data[x * 3 + 0] = 255 - (x / 2) as u8;
-                line_data[x * 3 + 1] = 255 - (line / 2) as u8;
-                line_data[x * 3 + 2] = 0xff;
-            }
-    
-            self.set_draw_pos(0, line as u16, DISPLAY_WIDTH as u16 - 1, line + 1 as u16)?;
-            
-            Self::send_pixels(&mut self.qspi, lcd_command::RAMWR, &line_data)?;
-        }
-        Ok(())
-    }
+    // pub fn fill(&mut self) {
+    //     for i in 0..(self.framebuffer.len() - 1) {
+    //         self.framebuffer[i] = 0xff;
+    //     }
+    // }
+
+    // pub fn fill_2(&mut self) -> Result<(), spi::Error> {
+    //     // let line_data =
+    //     //     Box::<[u8]>::try_new_uninit_slice(DISPLAY_WIDTH as usize * COLOR_BYTES).unwrap();
+    //     // // We must write to all of line_data before reading
+    //     // let mut line_data = unsafe { line_data.assume_init() };
+
+    //     let mut line_data: [u8; 412 * 3] = [0; 412 * 3];
+
+    //     // ranges dont include the end value so this runs for 0 - 411
+    //     for line in 0..(DISPLAY_HEIGHT) as u16 {
+    //         for x in 0..(DISPLAY_WIDTH) as usize {
+    //             line_data[x * 3 + 0] = 255 - (x / 2) as u8;
+    //             line_data[x * 3 + 1] = 255 - (line / 2) as u8;
+    //             line_data[x * 3 + 2] = 0xff;
+    //         }
+
+    //         self.set_draw_pos(0, line as u16, DISPLAY_WIDTH as u16 - 1, line + 1 as u16)?;
+
+    //         Self::send_pixels(&mut self.qspi, lcd_command::RAMWR, &line_data)?;
+    //     }
+    //     Ok(())
+    // }
 }
 
 impl<'a, Dm> DrawTarget for Spd2010<'a, Dm>
@@ -239,11 +193,6 @@ where
                 self.framebuffer[pixel_index as usize] = color.r();
                 self.framebuffer[pixel_index as usize + 1] = color.g();
                 self.framebuffer[pixel_index as usize + 2] = color.b();
-                // self.framebuffer[pixel_index as usize] = 255;
-                // self.framebuffer[pixel_index as usize + 1] = 255;
-                // self.framebuffer[pixel_index as usize + 2] = 255;
-                // println!("{}", self.framebuffer[pixel_index as usize]);
-                
             }
         }
 

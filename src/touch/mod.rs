@@ -1,11 +1,25 @@
+use alloc::string::String;
 use embassy_time::{Duration, Timer};
-use esp_hal::{i2c::master::I2c, Blocking};
+use esp_hal::{Blocking, i2c::master::I2c};
 use esp_println::{dbg, println};
 
 use crate::exio::{self, PinDirection, PinState};
 
 const SPD2010_ADDR: u8 = 0x53;
 const EXIO_TOUCH_RESET_PIN: u8 = 0;
+
+pub fn tp_read_data(i2c: &mut I2c<'_, Blocking>) {}
+
+pub async fn write_tp_clear_int_cmd(i2c: &mut I2c<'_, Blocking>) {
+    // let sample_data = [0x02, 0x00, 0x01, 0x00];
+    // let address = 0x0200;
+    // let data = &[0x01, 0x00];
+
+    let buf = &[0x02, 0x00, 0x01, 0x00];
+
+    i2c.write(SPD2010_ADDR, buf);
+    Timer::after(Duration::from_micros(200)).await;
+}
 
 pub async fn reset(i2c: &mut I2c<'_, Blocking>) {
     let pin_direction = exio::read_pin_direction(i2c, EXIO_TOUCH_RESET_PIN);
@@ -25,15 +39,18 @@ pub fn read_touch(i2c: &mut I2c<'_, Blocking>, reg_addr: u16, reg_data: &mut [u8
 }
 
 pub async fn read_fw_version(i2c: &mut I2c<'_, Blocking>) {
-    for reg in (0..127).rev() {
+    for reg in (0..128).rev() {
         let input: [u8; 2] = [0, reg];
         let mut read_buffer: [u8; 20] = [0; 20];
 
         let result = i2c.write_read(SPD2010_ADDR, &input, &mut read_buffer);
-        dbg!(result);
+        // dbg!(result);
+        //
+        let s = String::from_utf8_lossy(&read_buffer);
 
-        println!("{}: {:?}", reg, read_buffer);
-        
+        // println!("{}: {:?}", reg, read_buffer);
+        println!("{}: {}", reg, s);
+
         Timer::after(Duration::from_millis(50)).await;
     }
 
@@ -45,6 +62,7 @@ pub async fn read_fw_version(i2c: &mut I2c<'_, Blocking>) {
 
     let result = i2c.write_read(SPD2010_ADDR, &sample_data, &mut read_buffer);
 
+    println!("\n\nresult:");
     esp_println::dbg!(result);
 
     // let dummy = [
