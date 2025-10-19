@@ -1,105 +1,135 @@
-use alloc::string::String;
+mod complex;
+mod io;
+
+use core::cell::RefCell;
+
+use critical_section::Mutex;
 use embassy_time::{Duration, Timer};
-use esp_hal::{Async, Blocking, i2c::master::I2c};
+use esp_hal::{
+    Async, Blocking, DriverMode,
+    gpio::{Event, Input},
+    i2c::{self, master::I2c},
+    peripherals::GPIO4,
+};
 use esp_println::{dbg, println};
+use heapless::Vec;
 
 use crate::exio::{self, PinDirection, PinState};
 
 const SPD2010_ADDR: u8 = 0x53;
 const EXIO_TOUCH_RESET_PIN: u8 = 0;
+const SPD2010_MAX_TOUCH_POINTS: usize = 10;
 
-pub fn tp_read_data(i2c: &mut I2c<'_, Blocking>) {}
-
-pub async fn write_tp_clear_int_cmd(i2c: &mut I2c<'_, Blocking>) {
-    // let sample_data = [0x02, 0x00, 0x01, 0x00];
-    // let address = 0x0200;
-    // let data = &[0x01, 0x00];
-
-    let buf = &[0x02, 0x00, 0x01, 0x00];
-
-    i2c.write(SPD2010_ADDR, buf);
-    Timer::after(Duration::from_micros(200)).await;
+#[derive(Debug)]
+pub enum Error {
+    I2C(i2c::master::Error),
+    InterruptStayedHigh,
 }
 
-pub async fn reset(i2c: &mut I2c<'_, Async>) {
-    let pin_direction = exio::read_pin_direction(i2c, EXIO_TOUCH_RESET_PIN);
-    println!("direction: {:?}", pin_direction);
-    exio::set_pin_direction(i2c, EXIO_TOUCH_RESET_PIN, PinDirection::Output);
-    exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::Low);
-    Timer::after(Duration::from_millis(50)).await;
-    exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::High);
-    Timer::after(Duration::from_millis(50)).await;
+// All touches and gesture info
+#[derive(Default, Debug)]
+pub struct TouchData {
+    pub points: Vec<TouchPoint, SPD2010_MAX_TOUCH_POINTS>,
+    pub touch_count: u8,
+    pub gesture: u8,
+    pub down: bool,
+    pub up: bool,
+    pub down_x: u16,
+    pub down_y: u16,
+    pub up_x: u16,
+    pub up_y: u16,
 }
 
-pub fn read_touch(i2c: &mut I2c<'_, Async>, reg_addr: u16, reg_data: &mut [u8]) {
-    let mut buf_addr: [u8; 2] = [0; 2];
-    buf_addr[0] = (reg_addr >> 8) as u8;
-    buf_addr[1] = reg_addr as u8;
-    i2c.write_read(SPD2010_ADDR, &buf_addr, reg_data);
+// Single touch
+#[derive(Default, Debug)]
+pub struct TouchPoint {
+    pub id: u8,
+    pub x: u16,
+    pub y: u16,
+    pub weight: u8,
 }
 
-pub async fn read_fw_version(i2c: &mut I2c<'_, Async>) {
-    for reg in (0..128).rev() {
-        let input: [u8; 2] = [0, reg];
-        let mut read_buffer: [u8; 20] = [0; 20];
+#[derive(Debug)]
+struct StatusLow {
+    pt_exist: bool,
+    gesture: bool,
+    key: bool,
+    aux: bool,
+    keep: bool,
+    raw_or_pt: bool,
+    none6: bool,
+    none7: bool,
+}
 
-        let result = i2c.write_read(SPD2010_ADDR, &input, &mut read_buffer);
-        // dbg!(result);
-        //
-        let s = String::from_utf8_lossy(&read_buffer);
+#[derive(Debug)]
+struct StatusHigh {
+    none0: bool,
+    none1: bool,
+    none2: bool,
+    cpu_run: bool,
+    tint_low: bool,
+    tic_in_cpu: bool,
+    tic_in_bios: bool,
+    tic_busy: bool,
+}
 
-        // println!("{}: {:?}", reg, read_buffer);
-        println!("{}: {}", reg, s);
+#[derive(Debug)]
+struct TouchStatus {
+    status_low: StatusLow,
+    status_high: StatusHigh,
+    read_len: u16,
+}
 
-        Timer::after(Duration::from_millis(50)).await;
+struct HDPStatus {
+    status: u8,
+    next_packet_len: u16,
+}
+
+pub struct SPD2010Touch<'a, Dm: DriverMode> {
+    touch_interrupt: Input<'a>,
+    i2c: I2c<'a, Dm>,
+}
+
+static TOUCH_INTERRUPT: Mutex<RefCell<Option<Input>>> = Mutex::new(RefCell::new(None));
+
+impl<'a, Dm: DriverMode> SPD2010Touch<'a, Dm> {
+    pub fn new(i2c: I2c<'a, Dm>, mut touch_interrupt: Input<'a>) -> Self {
+        touch_interrupt.listen(Event::FallingEdge);
+
+        Self {
+            i2c,
+            touch_interrupt,
+        }
     }
 
-    let mut sample_data: [u8; 2] = [0; 2];
-    sample_data[0] = 0x26;
-    sample_data[1] = 0x00;
+    async fn clear_interrupt(&mut self) -> Result<(), Error> {
+        let ack: [u8; 2] = [0x01, 0x00]; // step 1: ACK (acknowledge interrupt)
+        let rearm: [u8; 2] = [0x00, 0x00]; // step 2: re-arm (setup interrupt again)
 
-    let mut read_buffer: [u8; 2] = [0; 2];
+        let mut try_count = 0;
+        // keep re-trying every 2ms until interrupt is low or tried 5 times
+        while self.touch_interrupt.is_low() || try_count == 0 {
+            self.write_command(0x0002, &ack)?; // ack
+            Timer::after(Duration::from_micros(200)).await;
+            self.write_command(0x0002, &rearm)?; // re-arm
+            if try_count > 4 {
+                // Timeout
+                return Err(Error::InterruptStayedHigh);
+            }
+            try_count += 1;
+            Timer::after(Duration::from_millis(2)).await;
+        }
 
-    let result = i2c.write_read(SPD2010_ADDR, &sample_data, &mut read_buffer);
+        Ok(())
+    }
 
-    println!("\n\nresult:");
-    esp_println::dbg!(result);
-
-    // let dummy = [
-    //     read_buffer[0],
-    //     read_buffer[1],
-    //     read_buffer[3],
-    //     read_buffer[0],
-    // ];
-    // let dver = [read_buffer[5], read_buffer[4]];
-    // let pid = [
-    //     read_buffer[9],
-    //     read_buffer[8],
-    //     read_buffer[7],
-    //     read_buffer[6],
-    // ];
-    // let ic_name_l = [
-    //     read_buffer[13],
-    //     read_buffer[12],
-    //     read_buffer[11],
-    //     read_buffer[10],
-    // ];
-    // let ic_name_h = [
-    //     read_buffer[17],
-    //     read_buffer[16],
-    //     read_buffer[15],
-    //     read_buffer[14],
-    // ];
-
-    println!("{:?}", read_buffer);
-
-    // println!("dummy[{dummy:?}], DVer[{dver:?}], PID[{pid:?}], NAME[{ic_name_l:?}-{ic_name_h:?}]");
-
-    //    let dummy: u32 = ((sample_data[0] as u32) << 24) | ((sample_data[1] as u32) << 16) | ((sample_data[3] as u32) << 8) | (sample_data[0] as u32);
-
-    // let dver: u16 = ((sample_data[5] as u16) << 8) | (sample_data[4] as u16);
-    // let pid: u32 = (((sample_data[9] as u32) << 24) | ((sample_data[8] as u32) << 16) | ((sample_data[7] as u32) << 8) | (sample_data[6] as u32));
-    // let ic_name_l: u32 = ((sample_data[13] << 24) | (sample_data[12] << 16) | (sample_data[11] << 8) | (sample_data[10]));    // "2010"
-    // ICName_H = ((sample_data[17] << 24) | (sample_data[16] << 16) | (sample_data[15] << 8) | (sample_data[14]));    // "SPD"
-    // printf("Dummy[%ld], DVer[%d], PID[%ld], Name[%ld-%ld]\r\n", Dummy, DVer, PID, ICName_H, ICName_L);
+    pub async fn reset(i2c: &mut I2c<'_, Async>) {
+        exio::set_pin_direction(i2c, EXIO_TOUCH_RESET_PIN, PinDirection::Output);
+        Timer::after(Duration::from_millis(50)).await;
+        exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::High);
+        Timer::after(Duration::from_millis(50)).await;
+        exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::Low);
+        Timer::after(Duration::from_millis(50)).await;
+        exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::High);
+    }
 }
