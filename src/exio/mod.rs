@@ -71,9 +71,7 @@ fn read_register_bit(i2c: &mut I2c<Async>, register: u8, bit: u8) -> bool {
 
     let reg_value = read_register(i2c, register);
 
-    let bit_status = (reg_value >> bit) & 1 == 1; // Shift so requested bit is at right of byte, set other bits to 0
-
-    bit_status
+    (reg_value >> bit) & 1 == 1 // Shift so requested bit is at right of byte, set other bits to 0
 }
 
 pub fn set_pin_direction(i2c: &mut I2c<Async>, pin: u8, direction: PinDirection) {

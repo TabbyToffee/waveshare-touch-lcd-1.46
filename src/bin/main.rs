@@ -3,56 +3,43 @@
 #![allow(dead_code)]
 #![feature(allocator_api, new_zeroed_alloc)]
 
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 
-use alloc::format;
 use critical_section::Mutex;
 use display::config::DMA_CHUNK_SIZE;
 
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::{
-    Drawable,
     pixelcolor::Rgb888,
-    prelude::{Point, Primitive, RgbColor, Size},
+    prelude::{Point, RgbColor, Size},
     primitives::{Circle, PrimitiveStyleBuilder, Rectangle, StyledDrawable},
 };
 use esp_alloc::HeapStats;
-// use embedded_hal::spi::SpiBus;
 use esp_hal::{
     Async,
+    clock::CpuClock,
     dma::{DmaRxBuf, DmaTxBuf},
-    gpio::{Event, Input, Io, Pull},
+    dma_buffers,
+    gpio::{Event, Input, InputConfig, Io, Pull},
+    handler,
+    i2c::master::{Config, I2c},
+    ledc::Ledc,
+    psram::{self, PsramSize},
+    spi::{self, master::Spi},
+    time::Rate,
+    timer::systimer::SystemTimer,
+    xtensa_lx_rt::interrupt,
 };
-use esp_hal::{dma_buffers, psram};
-use esp_hal::{gpio::InputConfig, psram::PsramSize};
-use pcf8563::{PCF8563, Time};
-// use smoltcp::time::Duration;
 use watch_playground::{
-    display, test_rtc,
-    touch::{SPD2010Touch, TouchData},
-};
-use watch_playground::{
-    display::{config::ESP_PANEL_LCD_SPI_CLK_MHZ, draw::Spd2010},
-    speaker, touch,
+    display::{self, config::ESP_PANEL_LCD_SPI_CLK_MHZ, draw::Spd2010},
+    touch::{self, InterruptInput, SPD2010Touch, TouchData},
 };
 
 use embassy_executor::Spawner;
 use esp_backtrace::arch::backtrace;
-use esp_hal::clock::CpuClock;
-use esp_hal::timer::systimer::SystemTimer;
 
-use esp_hal::{
-    i2c::master::{Config, I2c},
-    ledc::Ledc,
-    spi,
-    spi::master::Spi,
-    time::Rate,
-};
 use esp_println::println;
-use u8g2_fonts::{
-    FontRenderer, fonts,
-    types::{FontColor, HorizontalAlignment, VerticalPosition},
-};
+use u8g2_fonts::{FontRenderer, fonts};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -81,19 +68,47 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
 extern crate alloc;
 
-static TOUCH_INTERRUPT: Mutex<RefCell<Option<Input>>> = Mutex::new(RefCell::new(None));
+// critical_section mutex requires RefCell for interior mutability
+static TOUCH_INTERRUPT: Mutex<RefCell<Option<TouchInterrupt>>> = Mutex::new(RefCell::new(None));
+
+struct TouchInterrupt<'a> {
+    interrupt_input: Input<'a>,
+    interrupt_flag: bool,
+}
+
+impl<'a> TouchInterrupt<'a> {
+    fn new(interrupt_input: Input<'a>) -> Self {
+        Self {
+            interrupt_input,
+            interrupt_flag: false,
+        }
+    }
+    fn possible_interrupt(&mut self) {
+        // println!("Possible Interrupt");
+        if self.interrupt_input.is_interrupt_set() {
+            println!("Interrupt!");
+            self.interrupt_flag = true;
+            self.interrupt_input.clear_interrupt();
+        }
+    }
+}
+
+impl<'a> InterruptInput for TouchInterrupt<'a> {
+    fn get_interrupt(&self) -> bool {
+        self.interrupt_flag
+    }
+    fn clear_interrupt(&mut self) {
+        self.interrupt_flag = false
+    }
+}
 
 #[esp_hal_embassy::main]
 async fn main(_spawner: Spawner) {
-    // generator version: 0.3.1
-
-    let mut psram_config = psram::PsramConfig::default();
-    psram_config.size = PsramSize::Size(4 * 1024 * 1024);
-
-    let config = esp_hal::Config::default()
-        .with_cpu_clock(CpuClock::max())
-        .with_psram(psram_config);
+    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
+
+    let mut io = Io::new(peripherals.IO_MUX);
+    io.set_interrupt_handler(handler);
 
     let timer0 = SystemTimer::new(peripherals.SYSTIMER);
     esp_hal_embassy::init(timer0.alarm0);
@@ -146,7 +161,7 @@ async fn main(_spawner: Spawner) {
 
     let frequency = Rate::from_mhz(ESP_PANEL_LCD_SPI_CLK_MHZ);
 
-    let mut spi = Spi::new(
+    let spi = Spi::new(
         peripherals.SPI2,
         spi::master::Config::default()
             .with_mode(spi::Mode::_3)
@@ -174,40 +189,44 @@ async fn main(_spawner: Spawner) {
 
     let config = InputConfig::default().with_pull(Pull::Up);
     let mut touch_interrupt = Input::new(peripherals.GPIO4, config);
+    touch_interrupt.listen(Event::FallingEdge);
+
+    let touch_interrupt_handler = TouchInterrupt {
+        interrupt_input: touch_interrupt,
+        interrupt_flag: false,
+    };
 
     critical_section::with(|cs| {
-        touch_interrupt.listen(Event::FallingEdge);
-        TOUCH_INTERRUPT.borrow_ref_mut(cs).replace(touch_interrupt)
+        TOUCH_INTERRUPT
+            .borrow_ref_mut(cs)
+            .replace(touch_interrupt_handler);
     });
 
     Timer::after(Duration::from_millis(500)).await;
-    SPD2010Touch::<Async>::reset(&mut i2c).await;
+    touch::reset(&mut i2c).await;
     Timer::after(Duration::from_millis(100)).await;
 
-    let mut touch = SPD2010Touch::new(i2c, touch_interrupt);
+    let mut touch = SPD2010Touch::new(i2c, &TOUCH_INTERRUPT);
 
-    let mut io = Io::new(peripherals.IO_MUX);
-    io.set_interrupt_handler(handler);
+    // touch.read_fw_version().unwrap();
 
-    touch.read_fw_version().unwrap();
+    // let font = FontRenderer::new::<fonts::u8g2_font_logisoso92_tn>();
+    // // let text = "Welcome to SteadyTickOS";
+    // // let text = "Welcome to SteadyTickOS\n13:06";
+    // // let text = "13:06";
 
-    let font = FontRenderer::new::<fonts::u8g2_font_logisoso92_tn>();
-    // let text = "Welcome to SteadyTickOS";
-    // let text = "Welcome to SteadyTickOS\n13:06";
-    // let text = "13:06";
+    // // let mut rtc = pcf85063a::PCF85063::new(&mut i2c);
 
-    // let mut rtc = pcf85063a::PCF85063::new(&mut i2c);
+    // // test_rtc::test_rtc(&mut rtc).await;
 
-    // test_rtc::test_rtc(&mut rtc).await;
+    // let mut ticker = Ticker::every(Duration::from_secs(1));
 
-    let mut ticker = Ticker::every(Duration::from_secs(1));
-
-    // rtc.set_time(&time::Time::MIDNIGHT);
-    // rtc.set_time(&Time {
-    //     hours: 0,
-    //     minutes: 0,
-    //     seconds: 0,
-    // });
+    // // rtc.set_time(&time::Time::MIDNIGHT);
+    // // rtc.set_time(&Time {
+    // //     hours: 0,
+    // //     minutes: 0,
+    // //     seconds: 0,
+    // // });
 
     let white = PrimitiveStyleBuilder::new()
         .fill_color(Rgb888::WHITE)
@@ -216,12 +235,30 @@ async fn main(_spawner: Spawner) {
     spd2010.fill();
     spd2010.flush().await.unwrap();
 
-    loop {
-        let mut touch_data = TouchData::default();
-        touch.read_touch_data(&mut touch_data).await.unwrap();
+    // loop {
+    //     let interrupt = touch_interrupt.is_interrupt_set();
+    //     spd2010.fill();
+    //     let rect = Rectangle::new(
+    //         Point {
+    //             x: 204,
+    //             y: 152 + interrupt as i32 * 100,
+    //         },
+    //         Size::new_equal(4),
+    //     );
+    //     rect.draw_styled(&white, &mut spd2010);
+    //     spd2010.flush().await.unwrap();
+    //     touch_interrupt.clear_interrupt();
+    //     Timer::after(Duration::from_millis(500)).await;
+    // }
 
-        if touch_data.points.len() > 0 {
-            let point = &touch_data.points[0];
+    loop {
+        println!("Available: {}", touch.available());
+        let mut touch_data = TouchData::default();
+        let new_data = touch.read(&mut touch_data).await.unwrap();
+        // println!("{}", new_data);
+        // println!("{:?}", touch_data);
+
+        for point in touch_data.points {
             let circle = Circle::new(
                 Point {
                     x: point.x as i32,
@@ -230,68 +267,20 @@ async fn main(_spawner: Spawner) {
                 5,
             );
             circle.draw_styled(&white, &mut spd2010).unwrap();
-            spd2010.flush().await.unwrap();
         }
+        spd2010.flush().await.unwrap();
 
-        Timer::after(Duration::from_millis(500)).await;
+        // Timer::after(Duration::from_secs(1)).await;
     }
-
-    // loop {
-    //     let time = rtc.get_datetime().await.unwrap();
-    //     let time_text = format!(
-    //         "{:02}:{:02}:{:02}",
-    //         time.hour(),
-    //         time.minute(),
-    //         time.second()
-    //     );
-
-    //     spd2010.fill();
-
-    //     font.render_aligned(
-    //         time_text.as_ref(),
-    //         Point::new(206, 206),
-    //         VerticalPosition::Center,
-    //         HorizontalAlignment::Center,
-    //         FontColor::Transparent(Rgb888::WHITE),
-    //         &mut spd2010,
-    //     )
-    //     .unwrap();
-
-    //     spd2010.flush().await.unwrap();
-
-    //     ticker.next().await;
-    // }
-
-    // Timer::after(Duration::from_secs(1)).await;
-
-    // let white = PrimitiveStyleBuilder::new()
-    //     .fill_color(Rgb888::WHITE)
-    //     .build();
-
-    // let black = PrimitiveStyleBuilder::new()
-    //     .fill_color(Rgb888::BLACK)
-    //     .build();
-
-    // for _ in 0..10 {
-    //     Rectangle::new(Point::new(0, 0), Size::new(412, 412))
-    //         .into_styled(white)
-    //         .draw(&mut spd2010)
-    //         .unwrap();
-    //     spd2010.flush().await.unwrap();
-    //     Timer::after(Duration::from_millis(1000)).await;
-    //     Rectangle::new(Point::new(0, 0), Size::new(412, 412))
-    //         .into_styled(black)
-    //         .draw(&mut spd2010)
-    //         .unwrap();
-    //     spd2010.flush().await.unwrap();
-    //     Timer::after(Duration::from_millis(1000)).await;
-    // }
-
-    // println!("Goodbye");
-    // let stats: HeapStats = esp_alloc::HEAP.stats();
-    // println!("{}", stats);
 }
 
 #[handler]
-#[ram]
 fn handler() {
+    critical_section::with(|cs| {
+        TOUCH_INTERRUPT
+            .borrow_ref_mut(cs)
+            .as_mut()
+            .unwrap()
+            .possible_interrupt();
+    });
+}

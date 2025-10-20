@@ -10,6 +10,7 @@ use esp_hal::{
     gpio::{Event, Input},
     i2c::{self, master::I2c},
     peripherals::GPIO4,
+    xtensa_lx_rt::interrupt,
 };
 use esp_println::{dbg, println};
 use heapless::Vec;
@@ -80,21 +81,20 @@ struct TouchStatus {
     read_len: u16,
 }
 
+#[derive(Default)]
 struct HDPStatus {
     status: u8,
     next_packet_len: u16,
 }
 
-pub struct SPD2010Touch<'a, Dm: DriverMode> {
-    touch_interrupt: Input<'a>,
+pub struct SPD2010Touch<'a, Dm: DriverMode, Ti: InterruptInput> {
     i2c: I2c<'a, Dm>,
+    touch_interrupt: &'a Mutex<RefCell<Option<Ti>>>,
 }
 
-static TOUCH_INTERRUPT: Mutex<RefCell<Option<Input>>> = Mutex::new(RefCell::new(None));
-
-impl<'a, Dm: DriverMode> SPD2010Touch<'a, Dm> {
-    pub fn new(i2c: I2c<'a, Dm>, mut touch_interrupt: Input<'a>) -> Self {
-        touch_interrupt.listen(Event::FallingEdge);
+impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
+    pub fn new(i2c: I2c<'a, Dm>, touch_interrupt: &'a Mutex<RefCell<Option<Ti>>>) -> Self {
+        // touch_interrupt.listen(Event::FallingEdge);
 
         Self {
             i2c,
@@ -102,34 +102,38 @@ impl<'a, Dm: DriverMode> SPD2010Touch<'a, Dm> {
         }
     }
 
-    async fn clear_interrupt(&mut self) -> Result<(), Error> {
-        let ack: [u8; 2] = [0x01, 0x00]; // step 1: ACK (acknowledge interrupt)
-        let rearm: [u8; 2] = [0x00, 0x00]; // step 2: re-arm (setup interrupt again)
-
-        let mut try_count = 0;
-        // keep re-trying every 2ms until interrupt is low or tried 5 times
-        while self.touch_interrupt.is_low() || try_count == 0 {
-            self.write_command(0x0002, &ack)?; // ack
-            Timer::after(Duration::from_micros(200)).await;
-            self.write_command(0x0002, &rearm)?; // re-arm
-            if try_count > 4 {
-                // Timeout
-                return Err(Error::InterruptStayedHigh);
-            }
-            try_count += 1;
-            Timer::after(Duration::from_millis(2)).await;
-        }
-
-        Ok(())
+    fn clear_interrupt_flag(&self) {
+        critical_section::with(|cs| {
+            self.touch_interrupt
+                .borrow_ref_mut(cs)
+                .as_mut()
+                .unwrap()
+                .clear_interrupt();
+        });
     }
 
-    pub async fn reset(i2c: &mut I2c<'_, Async>) {
-        exio::set_pin_direction(i2c, EXIO_TOUCH_RESET_PIN, PinDirection::Output);
-        Timer::after(Duration::from_millis(50)).await;
-        exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::High);
-        Timer::after(Duration::from_millis(50)).await;
-        exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::Low);
-        Timer::after(Duration::from_millis(50)).await;
-        exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::High);
+    fn get_interrupt_flag(&self) -> bool {
+        critical_section::with(|cs| {
+            self.touch_interrupt
+                .borrow_ref(cs)
+                .as_ref()
+                .unwrap()
+                .get_interrupt()
+        })
     }
+}
+
+pub trait InterruptInput {
+    fn get_interrupt(&self) -> bool;
+    fn clear_interrupt(&mut self);
+}
+
+pub async fn reset(i2c: &mut I2c<'_, Async>) {
+    exio::set_pin_direction(i2c, EXIO_TOUCH_RESET_PIN, PinDirection::Output);
+    Timer::after(Duration::from_millis(50)).await;
+    exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::High);
+    Timer::after(Duration::from_millis(50)).await;
+    exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::Low);
+    Timer::after(Duration::from_millis(50)).await;
+    exio::set_pin(i2c, EXIO_TOUCH_RESET_PIN, PinState::High);
 }

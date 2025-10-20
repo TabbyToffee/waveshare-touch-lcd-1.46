@@ -1,8 +1,12 @@
-use esp_hal::DriverMode;
+use crate::touch::InterruptInput;
 
 use super::{Error, SPD2010_ADDR, SPD2010Touch};
+use alloc::vec::Vec;
+use embassy_time::{Duration, Timer};
+use esp_hal::{DriverMode, i2c::master::Operation};
+use esp_println::println;
 
-impl<'a, Dm: DriverMode> SPD2010Touch<'a, Dm> {
+impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
     pub fn read_register(&mut self, reg: u16, data: &mut [u8]) -> Result<(), Error> {
         let reg_bytes = [reg as u8, (reg >> 8) as u8];
         self.i2c
@@ -14,10 +18,47 @@ impl<'a, Dm: DriverMode> SPD2010Touch<'a, Dm> {
 
     pub fn write_command(&mut self, reg: u16, data: &[u8]) -> Result<(), Error> {
         let reg_bytes = [reg as u8, (reg >> 8) as u8];
+
         self.i2c
-            .write(SPD2010_ADDR, &reg_bytes)
+            .transaction(
+                SPD2010_ADDR,
+                &mut [Operation::Write(&reg_bytes), Operation::Write(data)],
+            )
             .map_err(Error::I2C)?;
-        self.i2c.write(SPD2010_ADDR, data).map_err(Error::I2C)?;
+
+        Ok(())
+    }
+
+    pub async fn clear_interrupt(&mut self) -> Result<(), Error> {
+        let ack: [u8; 2] = [0x01, 0x00]; // step 1: ACK (acknowledge interrupt)
+        let rearm: [u8; 2] = [0x00, 0x00]; // step 2: re-arm (setup interrupt again)
+
+        // println!("Interrupt level: {:?}", self.touch_interrupt.level());
+
+        self.write_command(0x0002, &ack)?; // ack
+        Timer::after(Duration::from_micros(200)).await;
+        self.write_command(0x0002, &rearm)?; // re-arm
+        Timer::after(Duration::from_millis(10)).await;
+
+        // println!(
+        //     "Cleared interrupt, new level: {:?}",
+        //     self.touch_interrupt.level()
+        // );
+
+        // let mut try_count = 0;
+        // // keep re-trying every 2ms until interrupt is low or tried 5 times
+        // while self.touch_interrupt.is_low() || try_count == 0 {
+        //     self.write_command(0x0002, &ack)?; // ack
+        //     Timer::after(Duration::from_micros(200)).await;
+        //     self.write_command(0x0002, &rearm)?; // re-arm
+        //     if try_count > 4 {
+        //         // Timeout
+        //         return Err(Error::InterruptStayedHigh);
+        //     }
+        //     try_count += 1;
+        //     Timer::after(Duration::from_millis(2)).await;
+        // }
+
         Ok(())
     }
 }
