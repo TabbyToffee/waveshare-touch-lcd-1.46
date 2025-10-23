@@ -84,9 +84,8 @@ impl<'a> TouchInterrupt<'a> {
         }
     }
     fn possible_interrupt(&mut self) {
-        // println!("Possible Interrupt");
         if self.interrupt_input.is_interrupt_set() {
-            println!("Interrupt!");
+            // println!("Interrupt!");
             self.interrupt_flag = true;
             self.interrupt_input.clear_interrupt();
         }
@@ -104,7 +103,7 @@ impl<'a> InterruptInput for TouchInterrupt<'a> {
 
 #[esp_hal_embassy::main]
 async fn main(_spawner: Spawner) {
-    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
+    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::_80MHz);
     let peripherals = esp_hal::init(config);
 
     let mut io = Io::new(peripherals.IO_MUX);
@@ -252,9 +251,26 @@ async fn main(_spawner: Spawner) {
     // }
 
     loop {
-        println!("Available: {}", touch.available());
+        // println!("Available: {}", touch.available());
+        if !touch.available() {
+            continue;
+        }
+
+        let predicted_available = touch.available();
+
         let mut touch_data = TouchData::default();
         let new_data = touch.read(&mut touch_data).await.unwrap();
+
+        // if predicted_available && !new_data {
+        //     println!("Predicted, no data.");
+        // }
+        // if !predicted_available && new_data {
+        //     println!("Not predicted, was data.");
+        // }
+        // if !predicted_available && !new_data {
+        //     println!("No data.");
+        // }
+
         // println!("{}", new_data);
         // println!("{:?}", touch_data);
 
@@ -269,8 +285,6 @@ async fn main(_spawner: Spawner) {
             circle.draw_styled(&white, &mut spd2010).unwrap();
         }
         spd2010.flush().await.unwrap();
-
-        // Timer::after(Duration::from_secs(1)).await;
     }
 }
 

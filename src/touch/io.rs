@@ -33,31 +33,10 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
         let ack: [u8; 2] = [0x01, 0x00]; // step 1: ACK (acknowledge interrupt)
         let rearm: [u8; 2] = [0x00, 0x00]; // step 2: re-arm (setup interrupt again)
 
-        // println!("Interrupt level: {:?}", self.touch_interrupt.level());
-
         self.write_command(0x0002, &ack)?; // ack
         Timer::after(Duration::from_micros(200)).await;
         self.write_command(0x0002, &rearm)?; // re-arm
         Timer::after(Duration::from_millis(10)).await;
-
-        // println!(
-        //     "Cleared interrupt, new level: {:?}",
-        //     self.touch_interrupt.level()
-        // );
-
-        // let mut try_count = 0;
-        // // keep re-trying every 2ms until interrupt is low or tried 5 times
-        // while self.touch_interrupt.is_low() || try_count == 0 {
-        //     self.write_command(0x0002, &ack)?; // ack
-        //     Timer::after(Duration::from_micros(200)).await;
-        //     self.write_command(0x0002, &rearm)?; // re-arm
-        //     if try_count > 4 {
-        //         // Timeout
-        //         return Err(Error::InterruptStayedHigh);
-        //     }
-        //     try_count += 1;
-        //     Timer::after(Duration::from_millis(2)).await;
-        // }
 
         Ok(())
     }

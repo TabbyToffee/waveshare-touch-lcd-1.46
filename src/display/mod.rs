@@ -42,7 +42,7 @@ pub fn backlight_init(ledc: &mut Ledc, backlight_pwm_pin: GPIO5) {
     channel0
         .configure(channel::config::Config {
             timer: &backlight_timer,
-            duty_pct: 100,
+            duty_pct: 20,
             pin_config: channel::config::PinConfig::PushPull,
         })
         .unwrap();

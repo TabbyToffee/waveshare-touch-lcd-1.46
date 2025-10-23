@@ -96,14 +96,13 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
 
         let read_len = touch_status.read_len.min(64) as usize;
         self.read_register(0x0300, &mut data[0..read_len])?; // CHECK: Data may be to big
-        println!("{:?}", data);
+        // println!("{:?}", data);
 
         let check_id = data[4];
 
         if check_id <= 0x0A && touch_status.status_low.pt_exist {
             touch.touch_count =
                 (((touch_status.read_len - 4) / 6) as u8).min(SPD2010_MAX_TOUCH_POINTS as u8);
-            dbg!(touch.touch_count);
 
             for touch_index in 0..(touch.touch_count as usize) {
                 // Make sure we don't read out of bounds
@@ -157,6 +156,7 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
 
     fn read_remain_hdp_data(&mut self, status: &mut HDPStatus) -> Result<(), Error> {
         let mut data: [u8; 32] = [0; 32];
+        // data[1] = 0x03;
         let read_len = status.next_packet_len.min(32) as usize;
         self.read_register(0x0300, &mut data[0..read_len])?;
         Ok(())
@@ -171,10 +171,8 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
         let mut hdp_status = HDPStatus::default();
         let touch_status = self.read_status_length().await?;
 
-        // println!("Touch status: {:?}", touch_status);
-
         if touch_status.status_high.tic_in_bios {
-            println!("in bios");
+            // println!("in bios");
             self.clear_interrupt().await?; // ACK+re-arm+verify
             // write CPU start command
             self.write_command(0x0004, &[0x01, 0x00])?;
@@ -182,7 +180,7 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
         }
 
         if touch_status.status_high.tic_in_cpu {
-            println!("in cpu");
+            // println!("in cpu");
             // write point mode command
             self.write_command(0x0050, &[0x00, 0x00])?;
             // write start command
@@ -192,13 +190,13 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
         }
 
         if touch_status.status_high.cpu_run && touch_status.read_len == 0 {
-            println!("no data");
+            // println!("no data");
             self.clear_interrupt().await?;
             return Ok(false);
         }
 
         if touch_status.status_low.pt_exist || touch_status.status_low.gesture {
-            println!("some data");
+            // println!("some data");
             self.read_hdp(touch_status, touch_data).unwrap();
             self.clear_interrupt().await?;
 
@@ -215,12 +213,11 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
                 }
             }
 
-            // println!("{:?}", touch_data);
             return Ok(true);
         }
 
         if touch_status.status_high.cpu_run && touch_status.status_low.aux {
-            println!("aux");
+            // println!("aux");
             self.clear_interrupt().await?; // clear & re-arm
         }
 
@@ -234,7 +231,7 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
     pub async fn read(&mut self, touch_data: &mut TouchData) -> Result<bool, Error> {
         let new_data = self.read_touch_data(touch_data).await?;
         if new_data {
-            self.clear_interrupt_flag();
+            // self.clear_interrupt_flag();
             Ok(true)
         } else {
             Ok(false)
