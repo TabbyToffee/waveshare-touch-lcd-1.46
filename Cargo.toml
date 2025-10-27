@@ -74,7 +74,7 @@ esp-backtrace = { version = "0.17.0", features = ["esp32s3", "println"] }
 u8g2-fonts = "0.7.1"
 esp-bootloader-esp-idf = { version = "0.2.0", features = ["esp32s3"] }
 time = { version = "0.3.17", default-features = false }
-spd2010 = { path = "../spd2010" }
+spd2010 = { git = "https://github.com/TabbyToffee/spd2010/" }
 
 [profile.dev]
 # Rust debug is too slow.

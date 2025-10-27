@@ -1556,6 +1556,7 @@ dependencies = [
 [[package]]
 name = "spd2010"
 version = "0.1.0"
+source = "git+https://github.com/TabbyToffee/spd2010/#2db1b97fde830a42cd3e4d1d61545022ab2ce6a5"
 dependencies = [
  "critical-section",
  "embedded-hal 1.0.0",
