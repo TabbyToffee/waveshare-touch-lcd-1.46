@@ -3,6 +3,8 @@
 #![allow(dead_code)]
 #![feature(allocator_api, new_zeroed_alloc)]
 
+use core::f32::consts::PI;
+
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use display::DMA_CHUNK_SIZE;
@@ -25,10 +27,10 @@ use watch_playground::{display, exio, speaker, touch};
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
+use esp_backtrace::arch::backtrace;
 use esp_hal::clock::CpuClock;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::timg::TimerGroup;
-use esp_backtrace::arch::backtrace;
 // use embedded_graphics::{
 //     pixelcolor::Rgb888,
 //     prelude::*,
@@ -87,7 +89,8 @@ async fn main(spawner: Spawner) {
 
     println!("{:?}", psram_config);
 
-    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max())
+    let config = esp_hal::Config::default()
+        .with_cpu_clock(CpuClock::max())
         .with_psram(psram_config);
     let peripherals = esp_hal::init(config);
 
@@ -186,59 +189,70 @@ async fn main(spawner: Spawner) {
 
     let mut spd2010 = Spd2010::new(spi, peripherals.GPIO18);
 
-
     // return;
 
-    let result = spd2010.init().await;
-
-    // let mut i: u8 = 0;
-    // for byte in spd2010.framebuffer.iter_mut() {
-    //     *byte = i;
-    //     i = i.wrapping_add(1);
-    // }
-
-    // dbg!(result);
-    // dbg!(spd2010.fill_2());
-
+    spd2010.init().await;
 
     let mut x: u16 = 0;
     let mut y: u16 = 0;
-    
-    // let config = InputConfig::default().with_pull(Pull::Up);
-    // let mut button = Input::new(pwr_btn_pin, config);
 
-    
+    let mut xv: i32 = 8;
+    let mut yv: i32 = 4;
 
-    // for frame in 0..200u8 {
-    //     // let nx = (x + 64) % 191;
-    //     // let ny = ((x as i32 - 64).rem_euclid(191)) as u16;
-    //     // let nx = (x as i32 + 8).rem_euclid(411) as u16;
-    //     // let ny = (y as i32 + 4).rem_euclid(411) as u16;
-    //     // spd2010.draw_rect(x, y, nx, ny, 62, 74, 59);
-    //     spd2010.draw_rect(0, 0, 411, 411, 255,  255 - ((frame.wrapping_mul(133)) % 255), (frame.wrapping_mul(26)) % 255);
-    //     // while tear_input.is_low() {}
-    //     spd2010.flush().await;
-    //     Timer::after(Duration::from_millis(50)).await;
-    //     // spd2010.draw_rect(x, y, nx, ny, 0, 0, 0);
-    //     // x = nx;
-    //     // y = ny;
-    // }
-    
-    // for frame in 0..200 {
-    //     // let nx = (x + 64) % 191;
-    //     // let ny = ((x as i32 - 64).rem_euclid(191)) as u16;
-    //     let nx = (x as i32 + 8).rem_euclid(411) as u16;
-    //     let ny = (y as i32 + 4).rem_euclid(411) as u16;
-    //     // spd2010.draw_rect(x, y, nx, ny, 62, 74, 59);
-    //     spd2010.draw_rect(x, y, nx, ny, 235, 160, 221);
-    //     // while tear_input.is_low() {}
-    //     spd2010.flush().await;
-    //     Timer::after(Duration::from_millis(50)).await;
-    //     spd2010.draw_rect(x, y, nx, ny, 0, 0, 0);
-    //     x = nx;
-    //     y = ny;
-    // }
-    spd2010.draw_rect(0 , 0, 411, 411, 60, 95, 60);
+    let maxdist = 206i32.pow(2);
+    println!("max: {maxdist}");
+
+    for frame in 0..200 {
+        let nx = x as i32 + xv;
+        let ny = y as i32 + yv;
+
+        let xdist = (nx - 205).pow(2);
+        let ydist = (ny - 205).pow(2);
+        println!("({xdist}, {ydist})");
+        if xdist + ydist > maxdist {
+            let normal: f32;
+            if (nx - 205) == 0 {
+                normal = match nx - 205 {
+                    0.. => -PI / 4f32,
+                    ..0 => PI / 4f32,
+                }
+            } else {
+                let ratio: f32 = (nx - 205) as f32 / (ny - 205) as f32;
+                normal = libm::atan(ratio as f64) as f32;
+            }
+
+            println!("normal: {}", normal);
+            
+            
+        }
+
+        if nx > 411 || nx < 0 {
+            xv *= -1;
+        } else {
+            x = nx as u16;
+        }
+        if ny > 411 || ny < 0 {
+            yv *= -1;
+        } else {
+            y = ny as u16;
+        }
+        // let x2 = x.wrapping_add(8);
+        // let y2 = y.wrapping_add(4);
+
+        // println!("({x}, {y}) - ({x2}, {y2})");
+        // spd2010.draw_rect(x, y, x2, y2, 235, 160, 221);
+        Circle::new(Point::new(x as i32, y as i32), 50)
+            .into_styled(PrimitiveStyle::with_fill(Rgb888::WHITE))
+            .draw(&mut spd2010);
+        spd2010.flush().await;
+        Timer::after(Duration::from_millis(50)).await;
+        // spd2010.draw_rect(x, y, x2, y2, 0, 0, 0);
+        Circle::new(Point::new(x as i32, y as i32), 50)
+            .into_styled(PrimitiveStyle::with_fill(Rgb888::BLACK))
+            .draw(&mut spd2010);
+    }
+    spd2010.draw_rect(0, 0, 411, 411, 60, 95, 60);
+
     // spd2010.draw_rect(63, 63, 127, 127, 62, 74, 59);
     // spd2010.draw_rect(73, 73, 117, 117, 235, 160, 221);
 
@@ -258,9 +272,9 @@ async fn main(spawner: Spawner) {
         .into_styled(PrimitiveStyle::with_fill(Rgb888::WHITE));
     let result = circle.draw(&mut spd2010);
     dbg!(result);
-    
+
     spd2010.flush().await;
-    
+
     return;
     Timer::after(Duration::from_secs(2)).await;
 
@@ -287,5 +301,4 @@ async fn main(spawner: Spawner) {
 
     // let mut rtc = PCF8563::new(&mut i2c);
     // rtc.rtc_init().unwrap();
-
 }
