@@ -3,14 +3,14 @@
 [package]
 edition = "2024"
 # edition = "2021"
-name = "watch-playground"
+name = "waveshare-touch-lcd-1-46"
 version = "0.1.0"
 
 # [lib]
 # test = false
 
 [[bin]]
-name = "watch-playground"
+name = "waveshare-touch-lcd-1-46"
 path = "./src/bin/main.rs"
 
 [dependencies]

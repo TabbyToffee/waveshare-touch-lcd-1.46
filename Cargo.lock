@@ -1800,7 +1800,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "watch-playground"
+name = "waveshare-touch-lcd-1-46"
 version = "0.1.0"
 dependencies = [
  "bleps",

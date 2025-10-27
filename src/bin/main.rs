@@ -27,11 +27,12 @@ use esp_hal::{
     time::Rate,
     timer::systimer::SystemTimer,
 };
-use spd2010::touch::{self, InterruptInput, SPD2010Touch, TouchData};
-use watch_playground::{
+use lib::{
     display::{self, config::ESP_PANEL_LCD_SPI_CLK_MHZ, draw::Spd2010},
     exio,
 };
+use spd2010::touch::{self, InterruptInput, SPD2010Touch, TouchData};
+use waveshare_touch_lcd_1_46 as lib;
 
 use embassy_executor::Spawner;
 use esp_backtrace::arch::backtrace;
