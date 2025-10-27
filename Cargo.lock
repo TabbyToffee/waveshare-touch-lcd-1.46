@@ -1304,13 +1304,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pcf8563"
-version = "0.1.2"
-dependencies = [
- "embedded-hal 1.0.0",
-]
-
-[[package]]
 name = "pin-project-lite"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1558,6 +1551,15 @@ dependencies = [
  "cfg-if",
  "heapless 0.8.0",
  "managed",
+]
+
+[[package]]
+name = "spd2010"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "embedded-hal 1.0.0",
+ "heapless 0.9.1",
 ]
 
 [[package]]
@@ -1821,9 +1823,9 @@ dependencies = [
  "heapless 0.9.1",
  "libm",
  "pcf85063a",
- "pcf8563",
  "qmi8658",
  "smoltcp",
+ "spd2010",
  "static_cell",
  "time",
  "u8g2-fonts",

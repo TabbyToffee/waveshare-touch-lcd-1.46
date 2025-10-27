@@ -1,11 +1,8 @@
 use embassy_time::{Duration, Timer};
 use esp_hal::DriverMode;
-use esp_println::{dbg, println};
+use esp_println::println;
 
-use crate::{
-    exio::read_register,
-    touch::{HDPStatus, InterruptInput},
-};
+use crate::touch::{HDPStatus, InterruptInput};
 
 use super::{
     Error, SPD2010_MAX_TOUCH_POINTS, SPD2010Touch, StatusHigh, StatusLow, TouchData, TouchPoint,
@@ -116,7 +113,9 @@ impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
                     y: ((data[7 + offset] as u16 & 0x0F) << 8) | data[6 + offset] as u16,
                     weight: data[8 + offset],
                 };
-                touch.points.push(touch_point);
+                if touch.points.push(touch_point).is_err() {
+                    break;
+                }
             }
 
             // For slide gesture recognition

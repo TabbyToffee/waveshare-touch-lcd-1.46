@@ -1,10 +1,8 @@
 use crate::touch::InterruptInput;
 
 use super::{Error, SPD2010_ADDR, SPD2010Touch};
-use alloc::vec::Vec;
 use embassy_time::{Duration, Timer};
 use esp_hal::{DriverMode, i2c::master::Operation};
-use esp_println::println;
 
 impl<'a, Dm: DriverMode, Ti: InterruptInput> SPD2010Touch<'a, Dm, Ti> {
     pub fn read_register(&mut self, reg: u16, data: &mut [u8]) -> Result<(), Error> {

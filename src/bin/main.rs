@@ -3,43 +3,40 @@
 #![allow(dead_code)]
 #![feature(allocator_api, new_zeroed_alloc)]
 
-use core::cell::{Cell, RefCell};
+use core::cell::RefCell;
 
 use critical_section::Mutex;
 use display::config::DMA_CHUNK_SIZE;
 
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Delay, Duration, Ticker, Timer};
 use embedded_graphics::{
     pixelcolor::Rgb888,
-    prelude::{Point, RgbColor, Size},
-    primitives::{Circle, PrimitiveStyleBuilder, Rectangle, StyledDrawable},
+    prelude::{Point, RgbColor},
+    primitives::{Circle, PrimitiveStyleBuilder, StyledDrawable},
 };
 use esp_alloc::HeapStats;
 use esp_hal::{
-    Async,
     clock::CpuClock,
     dma::{DmaRxBuf, DmaTxBuf},
     dma_buffers,
-    gpio::{Event, Input, InputConfig, Io, Pull},
+    gpio::{Event, Input, InputConfig, Io, OutputPin, Pull},
     handler,
     i2c::master::{Config, I2c},
     ledc::Ledc,
-    psram::{self, PsramSize},
     spi::{self, master::Spi},
     time::Rate,
     timer::systimer::SystemTimer,
-    xtensa_lx_rt::interrupt,
 };
+use spd2010::touch::{self, InterruptInput, SPD2010Touch, TouchData};
 use watch_playground::{
     display::{self, config::ESP_PANEL_LCD_SPI_CLK_MHZ, draw::Spd2010},
-    touch::{self, InterruptInput, SPD2010Touch, TouchData},
+    exio,
 };
 
 use embassy_executor::Spawner;
 use esp_backtrace::arch::backtrace;
 
 use esp_println::println;
-use u8g2_fonts::{FontRenderer, fonts};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -52,24 +49,6 @@ const ESP_PANEL_LCD_SPI_IO_DATA3: u8 = 41;
 const ESP_PANEL_LCD_SPI_IO_CS: u8 = 21;
 const EXAMPLE_LCD_PIN_NUM_RST: i8 = -1; // EXIO2
 const EXAMPLE_LCD_PIN_NUM_BK_LIGHT: u8 = 5;
-
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    println!("{}", info);
-    backtrace();
-    let backtrace = esp_backtrace::Backtrace::capture();
-    let frames = backtrace.frames();
-    println!("BACKTRACE:");
-    for frame in frames {
-        println!("{:#x}", frame.program_counter())
-    }
-    loop {}
-}
-
-extern crate alloc;
-
-// critical_section mutex requires RefCell for interior mutability
-static TOUCH_INTERRUPT: Mutex<RefCell<Option<TouchInterrupt>>> = Mutex::new(RefCell::new(None));
 
 struct TouchInterrupt<'a> {
     interrupt_input: Input<'a>,
@@ -100,6 +79,24 @@ impl<'a> InterruptInput for TouchInterrupt<'a> {
         self.interrupt_flag = false
     }
 }
+
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("{}", info);
+    backtrace();
+    let backtrace = esp_backtrace::Backtrace::capture();
+    let frames = backtrace.frames();
+    println!("BACKTRACE:");
+    for frame in frames {
+        println!("{:#x}", frame.program_counter())
+    }
+    loop {}
+}
+
+extern crate alloc;
+
+// critical_section mutex requires RefCell for interior mutability
+static TOUCH_INTERRUPT: Mutex<RefCell<Option<TouchInterrupt>>> = Mutex::new(RefCell::new(None));
 
 #[esp_hal_embassy::main]
 async fn main(_spawner: Spawner) {
@@ -202,10 +199,12 @@ async fn main(_spawner: Spawner) {
     });
 
     Timer::after(Duration::from_millis(500)).await;
-    touch::reset(&mut i2c).await;
+    let mut touch_reset_pin = exio::OutputPin::new(&mut i2c, 0).unwrap();
+    touch::reset(&mut Delay, &mut touch_reset_pin)
+        .await
+        .unwrap();
     Timer::after(Duration::from_millis(100)).await;
-
-    let mut touch = SPD2010Touch::new(i2c, &TOUCH_INTERRUPT);
+    let mut touch = SPD2010Touch::new(&mut i2c, &TOUCH_INTERRUPT);
 
     // touch.read_fw_version().unwrap();
 
@@ -256,10 +255,10 @@ async fn main(_spawner: Spawner) {
             continue;
         }
 
-        let predicted_available = touch.available();
+        // let predicted_available = touch.available();
 
         let mut touch_data = TouchData::default();
-        let new_data = touch.read(&mut touch_data).await.unwrap();
+        let new_data = touch.read(&mut Delay, &mut touch_data).await.unwrap();
 
         // if predicted_available && !new_data {
         //     println!("Predicted, no data.");
