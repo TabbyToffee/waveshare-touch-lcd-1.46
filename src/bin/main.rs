@@ -27,10 +27,7 @@ use esp_hal::{
     time::Rate,
     timer::systimer::SystemTimer,
 };
-use lib::{
-    display::{self, config::ESP_PANEL_LCD_SPI_CLK_MHZ, draw::Spd2010},
-    exio,
-};
+use lib::display::{self, config::ESP_PANEL_LCD_SPI_CLK_MHZ, draw::Spd2010};
 use spd2010::touch::{self, InterruptInput, SPD2010Touch, TouchData};
 use waveshare_touch_lcd_1_46 as lib;
 
@@ -65,7 +62,7 @@ impl<'a> TouchInterrupt<'a> {
     }
     fn possible_interrupt(&mut self) {
         if self.interrupt_input.is_interrupt_set() {
-            // println!("Interrupt!");
+            println!("Interrupt!");
             self.interrupt_flag = true;
             self.interrupt_input.clear_interrupt();
         }
@@ -73,11 +70,14 @@ impl<'a> TouchInterrupt<'a> {
 }
 
 impl<'a> InterruptInput for TouchInterrupt<'a> {
-    fn get_interrupt(&self) -> bool {
+    fn get_interrupt_flag(&self) -> bool {
         self.interrupt_flag
     }
-    fn clear_interrupt(&mut self) {
+    fn clear_interrupt_flag(&mut self) {
         self.interrupt_flag = false
+    }
+    fn get_interrupt_state(&self) -> bool {
+        self.interrupt_input.is_high()
     }
 }
 
@@ -112,21 +112,6 @@ async fn main(_spawner: Spawner) {
 
     esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
 
-    let pwr_btn_pin = peripherals.GPIO6;
-    let ledc_pin = peripherals.LEDC;
-    let backlight_pwm_pin = peripherals.GPIO5;
-
-    let i2s_peripheral = peripherals.I2S0;
-    let i2s_dma_channel = peripherals.DMA_CH0;
-    // Bit clock (SCLK / BCK)
-    let i2s_bclk = peripherals.GPIO48;
-    // Audio Data
-    let i2s_din = peripherals.GPIO47;
-    // Word Select (Left / Right channel) (LCLK / LRCK)
-    let i2s_ws = peripherals.GPIO38;
-
-    // speaker::test(i2s_peripheral, i2s_dma_channel, i2s_bclk, i2s_din, i2s_ws);
-
     // I2C
     let i2c_scl_pin = peripherals.GPIO10;
     let i2c_sda_pin = peripherals.GPIO11;
@@ -140,6 +125,26 @@ async fn main(_spawner: Spawner) {
     .with_sda(i2c_sda_pin)
     .with_scl(i2c_scl_pin)
     .into_async();
+
+    let mut exio = port_expander::Tca6408a::new(&mut i2c, false);
+    let exio_pins = exio.split();
+    let mut touch_reset_pin = exio_pins.io0.into_output().unwrap();
+    let mut display_reset_pin = exio_pins.io1.into_output().unwrap();
+
+    // let pwr_btn_pin = peripherals.GPIO6;
+    let ledc_pin = peripherals.LEDC;
+    let backlight_pwm_pin = peripherals.GPIO5;
+
+    // let i2s_peripheral = peripherals.I2S0;
+    // let i2s_dma_channel = peripherals.DMA_CH0;
+    // // Bit clock (SCLK / BCK)
+    // let i2s_bclk = peripherals.GPIO48;
+    // // Audio Data
+    // let i2s_din = peripherals.GPIO47;
+    // // Word Select (Left / Right channel) (LCLK / LRCK)
+    // let i2s_ws = peripherals.GPIO38;
+
+    // // speaker::test(i2s_peripheral, i2s_dma_channel, i2s_bclk, i2s_din, i2s_ws);
 
     // SPI
     let sck = peripherals.GPIO40;
@@ -174,7 +179,7 @@ async fn main(_spawner: Spawner) {
     .with_dma(peripherals.DMA_CH1)
     .with_buffers(dma_rx_buf, dma_tx_buf);
 
-    display::reset(&mut i2c).await;
+    display::reset(&mut display_reset_pin).await;
 
     let mut ledc: Ledc = Ledc::new(ledc_pin);
 
@@ -199,15 +204,15 @@ async fn main(_spawner: Spawner) {
             .replace(touch_interrupt_handler);
     });
 
-    Timer::after(Duration::from_millis(500)).await;
-    let mut touch_reset_pin = exio::OutputPin::new(&mut i2c, 0).unwrap();
+    Timer::after(Duration::from_millis(200)).await;
     touch::reset(&mut Delay, &mut touch_reset_pin)
         .await
         .unwrap();
-    Timer::after(Duration::from_millis(100)).await;
+    Timer::after(Duration::from_millis(200)).await;
     let mut touch = SPD2010Touch::new(&mut i2c, &TOUCH_INTERRUPT);
+    Timer::after(Duration::from_millis(200)).await;
 
-    // touch.read_fw_version().unwrap();
+    println!("{}", touch.read_fw_version().unwrap());
 
     // let font = FontRenderer::new::<fonts::u8g2_font_logisoso92_tn>();
     // // let text = "Welcome to SteadyTickOS";
@@ -251,28 +256,13 @@ async fn main(_spawner: Spawner) {
     // }
 
     loop {
-        // println!("Available: {}", touch.available());
-        if !touch.available() {
+        let predicted_available = touch.available();
+        if !predicted_available {
             continue;
         }
 
-        // let predicted_available = touch.available();
-
         let mut touch_data = TouchData::default();
         let new_data = touch.read(&mut Delay, &mut touch_data).await.unwrap();
-
-        // if predicted_available && !new_data {
-        //     println!("Predicted, no data.");
-        // }
-        // if !predicted_available && new_data {
-        //     println!("Not predicted, was data.");
-        // }
-        // if !predicted_available && !new_data {
-        //     println!("No data.");
-        // }
-
-        // println!("{}", new_data);
-        // println!("{:?}", touch_data);
 
         for point in touch_data.points {
             let circle = Circle::new(

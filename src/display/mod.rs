@@ -7,6 +7,7 @@ use embassy_time::{Duration, Timer};
 
 extern crate alloc;
 
+use embedded_hal::digital::OutputPin;
 use esp_hal::{
     Async,
     i2c::master::I2c,
@@ -20,10 +21,7 @@ use esp_hal::{
 };
 use esp_println::println;
 
-use crate::{
-    display::config::{COLOR_BYTES, lcd_command, opcode},
-    exio::{self, PinDirection, PinState},
-};
+use crate::display::config::{COLOR_BYTES, lcd_command, opcode};
 
 pub fn backlight_init(ledc: &mut Ledc, backlight_pwm_pin: GPIO5) {
     // *ledc = Ledc::new(ledc_pin);
@@ -48,11 +46,11 @@ pub fn backlight_init(ledc: &mut Ledc, backlight_pwm_pin: GPIO5) {
         .unwrap();
 }
 
-pub async fn reset(i2c: &mut I2c<'_, Async>) {
+pub async fn reset<R: OutputPin>(reset_pin: &mut R) {
     println!("Reset display");
-    exio::set_pin_direction(i2c, EXIO_LCD_RESET_PIN, PinDirection::Output);
-    exio::set_pin(i2c, EXIO_LCD_RESET_PIN, PinState::Low);
+
+    reset_pin.set_low().unwrap();
     Timer::after(Duration::from_millis(100)).await;
-    exio::set_pin(i2c, EXIO_LCD_RESET_PIN, PinState::High);
+    reset_pin.set_high().unwrap();
     Timer::after(Duration::from_millis(100)).await;
 }

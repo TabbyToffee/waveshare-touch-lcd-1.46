@@ -4,9 +4,8 @@
 extern crate alloc;
 
 pub mod display;
-pub mod exio;
+// pub mod exio;
 pub mod gyroscope;
 pub mod interface;
 pub mod power_btn;
 pub mod speaker;
-pub mod touch;

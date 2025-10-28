@@ -1316,6 +1316,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "port-expander"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21386e008c7aae49fedaf13fa22a582a0c462f244403f680ae8f9f433f86452d"
+dependencies = [
+ "embedded-hal 1.0.0",
+]
+
+[[package]]
 name = "portable-atomic"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1555,8 +1564,7 @@ dependencies = [
 
 [[package]]
 name = "spd2010"
-version = "0.1.0"
-source = "git+https://github.com/TabbyToffee/spd2010/#2db1b97fde830a42cd3e4d1d61545022ab2ce6a5"
+version = "0.1.1"
 dependencies = [
  "critical-section",
  "embedded-hal 1.0.0",
@@ -1824,6 +1832,7 @@ dependencies = [
  "heapless 0.9.1",
  "libm",
  "pcf85063a",
+ "port-expander",
  "qmi8658",
  "smoltcp",
  "spd2010",
